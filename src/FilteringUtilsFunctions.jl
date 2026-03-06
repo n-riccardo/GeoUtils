@@ -205,7 +205,7 @@ function compute_distance_matrix(lon1,lat1,lon2,lat2)
 
 	for i in 1:n_stations1, j in 1:n_stations2
 
-		distance_matrix[i,j]=haversine([lon1[i],lat1[i]], [lon2[j],lat2[j]],  Earth_Radius) #result in km
+		distance_matrix[i,j]=haversine([lon1[i],lat1[i]], [lon2[j],lat2[j]],  Earth_Radius) 
 
 	end
 
@@ -213,15 +213,15 @@ function compute_distance_matrix(lon1,lat1,lon2,lat2)
 
 end
 
-function compute_distances_from_point(lon1,lat1,lonp,latp)
+function compute_distances_from_point(lons,lats,lonp,latp)
 
-	n_stations=length(lon1)
+	n_stations=length(lons)
 
 	distance_vec=zeros(n_stations)
 
 	for i in 1:n_stations
 
-		distance_vec[i]=haversine([lon1[i],lat1[i]], [lonp,latp],  Earth_Radius) #result in km
+		distance_vec[i]=haversine([lons[i],lats[i]], [lonp,latp],  Earth_Radius) 
 
 	end
 
@@ -1171,5 +1171,42 @@ function rectangleForGMT(region,llStep)
 	regionLats = vcat(lat, lat[1])
 	
 	return regionLons, regionLats
+
+end
+
+function measure_station_density_radius(lon_s, lat_s, lon_p, lat_p, N)
+
+    # probably this loop is not optimal
+    radii=zeros(size(lon_p));
+
+    for j in axes(radii,2), i in axes(radii,1)
+
+        temp_distances=compute_distances_from_point(lon_s,lat_s,lon_p[i,j],lat_p[i,j]);
+        my_indices= sortperm(temp_distances)
+
+        my_index=my_indices[N];
+
+        radii[i,j]=temp_distances[my_index];
+
+    end
+
+    return radii
+
+end
+
+function measure_station_density_number(lon_s, lat_s, lon_p, lat_p, radius)
+
+    stat_numbers=zeros(size(lon_p));
+
+    for j in axes(radii,2), i in axes(radii,1)
+            
+        temp_distances=compute_distances_from_point(lon_s,lat_s,lon_p[i,j],lat_p[i,j]);
+        my_cond=(temp_distances <= radius)
+
+        stat_numbers[i,j]=length(lon_s[my_cond]);
+
+    end
+
+    return stat_numbers
 
 end

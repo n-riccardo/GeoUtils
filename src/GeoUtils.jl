@@ -1,4 +1,4 @@
-module GeoSwissArmyKnife
+module GeoUtils
 
 using GMT
 using LibGEOS
