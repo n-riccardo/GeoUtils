@@ -15,10 +15,10 @@ compute\\_GNSS\\_profiles:
 06-02-2025
 
 *Author:* 
-Riccardo Nucci (riccardo.nucci4@unibo.it)
+Riccardo Nucci (riccardo.nucci9@gmail.com)
 
 *Description:*
-This function compute the parallel and orthogonal velocities of GNSS stations along a profile.
+This function compute the parallel and orthogonal velocities of GNSS stations along a profile (works with rhumblines).
 Outputs are ready for GMT plotting.
 
 *Required arguments:*
@@ -132,7 +132,7 @@ function compute_GNSS_profiles(cross_profile_half_width::Real, start_end_points:
 
     for i in 1:dim_data_r
         velocity_parallel_data[i] = ve_data[i] * sind(azimuth_) + vn_data[i] * cosd(azimuth_)
-        velocity_orthogonal_data[i] = ve_data[i] * cosd(azimuth_) - vn_data[i] * sind(azimuth_)
+        velocity_orthogonal_data[i] = ve_data[i] * cosd(azimuth_) - vn_data[i] * sind(azimuth_) #positive on the right of profile direction
         sigma_parallel_data[i] = sqrt(sind(azimuth_)^2 * se_data[i]^2 + cosd(azimuth_)^2 * sn_data[i]^2)
         sigma_orthogonal_data[i] = sqrt(cosd(azimuth_)^2 * se_data[i]^2 + sind(azimuth_)^2 * sn_data[i]^2)
     end
@@ -153,10 +153,10 @@ function compute_GNSS_profiles(cross_profile_half_width::Real, start_end_points:
     return Info,LonLatCentralTrack,LonLatRect,Velocities
 
 end
-### (: ###
-### (: ###
-### (: ###
-### (: ###
+### - ###
+### - ###
+### - ###
+### - ###
 """
 compute\\_profile\\_from\\_grid:
 
@@ -164,7 +164,7 @@ compute\\_profile\\_from\\_grid:
 06-02-2025
 
 *Author:* 
-Riccardo Nucci (riccardo.nucci4@unibo.it)
+Riccardo Nucci (riccardo.nucci9@gmail.com)
 
 *Description:*
 This function uses GMT.jl functions to compute the scalar profile and crossprofile from a grid. 
@@ -284,15 +284,15 @@ function compute_profile_from_grid(cross_profile_half_width::Real, start_end_poi
     return Info, LonLatCentralTrack, LonLatRect, dfCentralTrack, dfCrossProfile
     
 end
-### (: ###
-### (: ###
-### (: ###
-### (: ###
+### - ###
+### - ###
+### - ###
+### - ###
 """
     compute\\_parorth\\_grid:
 
     *Author:*
-    Riccardo Nucci (riccardo.nucci4@unibo.it)
+    Riccardo Nucci (riccardo.nucci9@gmail.com)
 
     *Description:*
     It computes the parallel and orthogonal velocities for a given azimuth and return them
@@ -308,10 +308,10 @@ function compute_parorth_grid(ve_model::Matrix{<:Real}, vn_model::Matrix{<:Real}
     return velocity_parallel_model, velocity_orthogonal_model
 
 end
-### (: ###
-### (: ###
-### (: ###
-### (: ###
+### - ###
+### - ###
+### - ###
+### - ###
 """
 compute\\_seismicity\\_profiles:
 
@@ -319,7 +319,7 @@ compute\\_seismicity\\_profiles:
 06-02-2025
 
 *Author:* 
-Riccardo Nucci (riccardo.nucci4@unibo.it)
+Riccardo Nucci (riccardo.nucci9@gmail.com)
 
 *Required arguments:*
 - cross\\_profile\\_half\\_width::Real  # half width of the profile in km
@@ -335,7 +335,7 @@ Riccardo Nucci (riccardo.nucci4@unibo.it)
 *Notes:*
 - The function work in spherical Earth approximation
 """
-function compute_seismicity_profiles(cross_profile_half_width::Real, start_end_points::Vector{<:Real}=[0.0, 0.0, 0.0, 0.0], seismicity_data1::Matrix{<:Real}=Array{Float64}(undef, 0, 0); outer_output_folder::String, string_id::String, string_id_seism::String="",num_points_track::Int64=500)
+function compute_seismicity_profiles(cross_profile_half_width::Real, start_end_points::Vector{<:Real}=[0.0, 0.0, 0.0, 0.0], seismicity_data1::Matrix{<:Real}=Array{Float64}(undef, 0, 0); outer_output_folder::String="", string_id::String="", string_id_seism::String="",num_points_track::Int64=500)
 
     if isempty(seismicity_data1)
         print("\n-> Nothing to compute: please specify seismicity::Matrix{<:Real} in the format lon-lat-depth-magnitude \n")
@@ -417,16 +417,18 @@ function compute_seismicity_profiles(cross_profile_half_width::Real, start_end_p
         CSV.write(output_folder*"Seismicity.csv", Seismicity, writeheader=true)
     end
 
+    return Seismicity
+
 end
-### (: ###
-### (: ###
-### (: ###
-### (: ###
+### - ###
+### - ###
+### - ###
+### - ###
 """
 percentile\\_from\\_cross\\_sections:
 
 *Author:* 
-Riccardo Nucci (riccardo.nucci4@unibo.it)
+Riccardo Nucci (riccardo.nucci9@gmail.com)
 
 *Description:*
 Automatically compute the desired percentile in orth directions from CrossProfileValues.
@@ -495,7 +497,22 @@ function percentile_from_cross_sections(my_percentile::Real;path_to_file::String
 
     return percentile_results
 end
+### - ###
+### - ###
+### - ###
+### - ###
+"""
+compute\\_tracks:
 
+*Author:* 
+Riccardo Nucci (riccardo.nucci9@gmail.com)
+
+*Description:*
+Compute azimuth distances, track and rectangle of a profile. It works with rhumb lines.
+
+*Notes:*
+- num_points_track defines the sampling of the distances
+"""
 function compute_tracks(HalfWidth,start_end_points,num_points_track)
 
     # General info on the profile:
@@ -547,33 +564,348 @@ function compute_tracks(HalfWidth,start_end_points,num_points_track)
 
     return total_distance,azimuth_,dataOnTrack,distances,lon_rect,lat_rect
 end
+### - ###
+### - ###
+### - ###
+### - ###
+"""
+SegmentIntersection:
 
-function Intersect_track_blocksegments(segments_df,track_matrix,rectangle_matrix)
+*Author:* 
+Riccardo Nucci (riccardo.nucci9@gmail.com)
 
-	rename!(segments_df, [:lon, :lat])
+*Description:*
+Given a file (ar a 2 columns DataFrame) with fault traces (as lon-lat rows; NaN-NaN separation between faults), it returns the intersection between fault traces and the profile (central track only).
+
+*Notes:*
+- num_points_track defines the sampling of the distances
+"""
+function SegmentIntersection(half_width::Real,start_end_points::Vector{<:Real},segments_path::String;num_points_track::Int64=500,delimiter::Char=' ')
+
+    # Find intersection between track and segments:
+    segments_df = CSV.read(segments_path, DataFrame; header=false, ignorerepeated=true, delim=delimiter)
+    segments_df=segments_df[:,[1,2]] #Keep only lon-lat
+    rename!(segments_df, [:lon, :lat])
+
+    return SegmentIntersection(half_width,start_end_points,segments_df;num_points_track=num_points_track)
+
+end
+### - ###
+### - ###
+### - ###
+### - ###
+function SegmentIntersection(half_width::Real,start_end_points::Vector{<:Real},segments_df::DataFrame;num_points_track::Int64=500)
+
+    _, _, dataOnTrack, distances, lon_rect, lat_rect = compute_tracks(half_width,start_end_points,num_points_track)
+    LonLatCentralTrack=DataFrame(Distances=distances, Lon=dataOnTrack[:,1], Lat=dataOnTrack[:,2])
+    LonLatRect=DataFrame(Lon=lon_rect, Lat=lat_rect)
+
+    _,_,_,_,LonsLine,LatsLine = Intersect_track_blocksegments(segments_df, Matrix{Float64}(LonLatCentralTrack[:,[2,3]]),Matrix{Float64}(LonLatRect));
+
+    # Only to compute the distance from the beginning of the profile:
+    TempMatrix=[LonsLine LatsLine zeros(length(LonsLine)) zeros(length(LonsLine)) zeros(length(LonsLine)) ones(length(LonsLine)) ones(length(LonsLine)) ones(length(LonsLine))]
+    _,_,_,temp=compute_GNSS_profiles(half_width*1.5, start_end_points, TempMatrix);
+    # Results:
+    DistancesLine=temp.Distance
+    LonsLine=temp.Lon
+    LatsLine=temp.Lat
+
+    return DistancesLine,LonsLine,LatsLine
+end
+### - ###
+### - ###
+### - ###
+### - ###
+"""
+IsolinesIntersection:
+
+*Author:* 
+Riccardo Nucci (riccardo.nucci9@gmail.com)
+
+*Description:*
+Gives the profile of structures defined through isolines. The input format is rigid: three columns separated as lon-lat-depth.
+-  NaN rows separate different fault STRUCTURES (not isolines)
+-  different isolines referring to the same structure are recognized on the basis of the depth field, no separation
+
+*Notes:*
+- num_points_track defines the sampling of the distances
+"""
+function IsolinesIntersection(half_width::Real,start_end_points::Vector{<:Real},isolines_df::DataFrame;num_points_track::Int64=500)
+
+    _, _, dataOnTrack, distances, lon_rect, lat_rect = compute_tracks(half_width,start_end_points,num_points_track)
+    LonLatCentralTrack=DataFrame(Distances=distances, Lon=dataOnTrack[:,1], Lat=dataOnTrack[:,2])
+    LonLatRect=DataFrame(Lon=lon_rect, Lat=lat_rect)
+    
+    # Strategy is: separate the dataframe into blocks on the basis of the NaN values
+    # for each block separate according for the different values of depths
+    df_faults=divide_faults(isolines_df)
+
+    IntersectionPoints = Matrix{Float64}[]
+
+    for fault in df_faults
+        isolines=divide_isolines(fault)
+        IntersectionPointFault = Array{Float64}(undef, 0, 4)  # 0 rows, 3 columns
+        for isoline in isolines
+            _,_,_,_,LonsLine,LatsLine = Intersect_track_blocksegments(isoline, Matrix{Float64}(LonLatCentralTrack[:,[2,3]]),Matrix{Float64}(LonLatRect));
+
+            if(!isempty(LonsLine))
+            TempMatrix=[LonsLine LatsLine zeros(length(LonsLine)) zeros(length(LonsLine)) zeros(length(LonsLine)) ones(length(LonsLine)) ones(length(LonsLine)) ones(length(LonsLine))]
+            _,_,_,temp=compute_GNSS_profiles(half_width*1.5, start_end_points, TempMatrix);
+            # Results:
+            DistancesLine=temp.Distance
+
+            DepthsLine=[isoline[1,3] for i=1:length(LonsLine)]
+
+            IntersectionPointFault= vcat(IntersectionPointFault, [DistancesLine LonsLine LatsLine DepthsLine])
+            end
+        end
+        if(!isempty(IntersectionPointFault))
+            push!(IntersectionPoints, IntersectionPointFault)
+        end
+    end
+    
+    return IntersectionPoints
+
+end
+### - ###
+### - ###
+### - ###
+### - ###
+"""
+Intersect\\_track\\_blocksegments:
+
+*Author:* 
+Riccardo Nucci (riccardo.nucci9@gmail.com)
+
+*Description:*
+Given a dataframe of fault traces (as lon-lat rows; NaN-NaN separation between faults), it returns the geometric objects and coordinates of their intersections with the profile (both central track and rectangle)
+"""
+function Intersect_track_blocksegments(segments_df_input,track_ll_matrix,rectangle_ll_matrix)
+
+my_segment_df=segments_df_input[:,[1,2]] #Suppose lon-lat for the first two columns
+
+rename!(my_segment_df, [:lon, :lat])
+
+segments_df=split_into_segments(my_segment_df) #Fault traces as segments
+
+# Create a nx4 matrix
+rows = Float64[]
+buf = Float64[]
+for r in eachrow(segments_df)
+
+    x, y = Float64(r.lon), Float64(r.lat)
+    if isnan(x) || isnan(y)
+        empty!(buf)
+        continue
+    end
+    push!(buf, x, y)
+    if length(buf) == 4
+        append!(rows, buf)
+        empty!(buf)
+    end
+end
+
+segments = reshape(rows, 4, :)'
+
+println("Track-Segments intersection: ", size(segments,1), " segments found.")
+
+GMTPolyLine=Compute_GMTPolyLine(track_ll_matrix)
+GMTPoly=Compute_GMTPoly(rectangle_ll_matrix)
+
+# Intersection points:
+LonsLine=Float64[]
+LatsLine=Float64[]
+LonsPoly=Float64[]
+LatsPoly=Float64[]
+
+for idx=1:size(segments,1)
+
+    segment_temp=segments[idx,:]
+
+    GMTSegment=Compute_GMTPolyLine(Matrix{Float64}([segment_temp[1] segment_temp[2]; segment_temp[3] segment_temp[4]]))
+
+    # Use gmtspatial to find intersection (spherical approximation with great circles (-jg) using the authalic radius) 
+    inter_ds = GMT.gmtspatial(GMTSegment, GMTPolyLine, I="e")
+
+    if(!isempty(inter_ds))
+        push!(LonsLine,float(inter_ds[1,1]))
+        push!(LatsLine,float(inter_ds[1,2]))
+    end
+
+    inter_ds = GMT.gmtspatial(GMTSegment, GMTPoly, I="e") 
+    if(!isempty(inter_ds))
+        push!(LonsPoly,float(inter_ds[1,1]))
+        push!(LatsPoly,float(inter_ds[1,2]))
+    end
+end
 	
-	# Create the segments vector
-	segments = Vector{Tuple{Tuple{Float64,Float64},Tuple{Float64,Float64}}}()
-	buf = Tuple{Float64,Float64}[]
-	for r in eachrow(segments_df)
-		x, y = Float64(r.lon), Float64(r.lat)
-		if isnan(x) || isnan(y)
-			empty!(buf)
-			continue
-		end
-		push!(buf, (x,y))
-		if length(buf) == 2
-			push!(segments, (buf[1], buf[2]))
-			empty!(buf)
-		end
-	end
-	
-	println("There are ", length(segments), " segments.")
+println("Track-Segments intersection: ", length(LonsLine), " intersections for track.")
+println("Track-Segments intersection: ", length(LonsPoly), " intersections for rectangle.")
 
-	poly_coords = copy(track_matrix)
-	if poly_coords[1,1] != poly_coords[end,1] || poly_coords[1,2] != poly_coords[end,2]
-		poly_coords = vcat(poly_coords, poly_coords[1:1, :])
-	end
+println(LonsLine)
+println(LatsLine)
+println(LonsPoly)
+println(LatsPoly)
+
+
+return GMTPolyLine,GMTPoly,LonsPoly,LatsPoly,LonsLine,LatsLine
+
+end
+### - ###
+### - ###
+### - ###
+### - ###
+"""
+Given a DataFrame with fault traces (lon-lat or lon-lat-depth) separated by NaN, split_into_segments atomize each fault into individual segments and put all toghether into a same DataFrame NaN-separated.
+"""
+function split_into_segments(input_df)
+
+    df=copy(input_df)
+
+    out = similar(df, 0) #crea un dataframe vuoto
+    
+    if(isnan(df[1,1]) || isnan(df[1,2]))
+        df=df[2:end,:]
+    end
+    if(isnan(df[end,1]) || isnan(df[end,2]))
+        df=df[1:end-1,:]
+    end
+    
+    my_line_index = 1
+    n = nrow(df)
+    ncol_=ncol(df)
+    
+    while my_line_index <= n
+    
+        next_line_index=my_line_index
+    
+        while next_line_index <= n && ((!isnan(df[next_line_index,1])) && (!isnan(df[next_line_index,2])))
+            next_line_index = next_line_index + 1
+        end
+    
+        next_line_index=next_line_index-1
+    
+        if next_line_index - my_line_index >= 1
+            for indx in my_line_index:(next_line_index-1)
+                push!(out, df[indx,:])
+                push!(out, df[indx+1,:])
+                push!(out, fill(NaN, ncol_))
+            end
+        end
+    
+        my_line_index=next_line_index+2
+    
+    end
+    
+    return out
+    
+end
+### - ###
+### - ###
+### - ###
+### - ###
+"""
+Given a DataFrame with fault strucures (lon-lat or lon-lat-depth) separated by NaN, divide_faults return a vector of DataFrames each relative to a single fault
+"""
+function divide_faults(input_df)
+
+    df=copy(input_df)
+
+    outs= DataFrame[]   # vettore vuoto di DataFrame
+    
+    if(isnan(df[1,1]) || isnan(df[1,2]))
+        df=df[2:end,:]
+    end
+    if(isnan(df[end,1]) || isnan(df[end,2]))
+        df=df[1:end-1,:]
+    end
+    
+    my_line_index = 1
+    n = nrow(df)
+    ncol_=ncol(df)
+
+    while my_line_index <= n
+    
+        next_line_index=my_line_index
+    
+        while next_line_index <= n && ((!isnan(df.lon[next_line_index])) && (!isnan(df.lat[next_line_index])))
+            next_line_index = next_line_index + 1
+        end
+    
+        next_line_index=next_line_index-1
+    
+        if next_line_index - my_line_index >= 1
+            indx_interval=my_line_index:next_line_index
+            push!(outs, df[indx_interval,:])
+
+        end
+    
+        my_line_index=next_line_index+2
+    
+    end
+    
+    return outs
+    
+end
+### - ###
+### - ###
+### - ###
+### - ###
+"""
+Given a DataFrame with fault structure defined by isolines (lon-lat-depth) WITHOUT NaN, divide_isolines return a vector of DataFrames, each relative to a single isoline
+"""
+function divide_isolines(input_df)
+
+    df=copy(input_df)
+
+    outs = DataFrame[]  # vettore vuoto di DataFrame
+    
+    if(isnan(df[1,1]) || isnan(df[1,2]))
+        df=df[2:end,:]
+    end
+    if(isnan(df[end,1]) || isnan(df[end,2]))
+        df=df[1:end-1,:]
+    end
+    
+    my_line_index = 1
+    n = nrow(df)
+    ncol_=ncol(df)
+
+    my_depth_value=df[1,3]
+
+    while my_line_index <= n
+    
+        next_line_index=my_line_index
+    
+        while next_line_index <= n && (df[next_line_index,3]==my_depth_value)
+            next_line_index = next_line_index + 1
+        end
+
+        if(next_line_index!=(n+1))
+            my_depth_value=df[next_line_index,3]
+        end
+        
+        next_line_index=next_line_index-1
+    
+        if next_line_index - my_line_index >= 1
+            indx_interval=my_line_index:next_line_index
+            push!(outs, input_df[indx_interval,:])
+        end
+    
+        my_line_index=next_line_index+1
+    
+    end
+    
+    return outs
+
+end
+### - ###
+### - ###
+### - ###
+### - ###
+function Compute_GMTPolyLine(LonLatMatrix) #GMT line
+
+	poly_coords = copy(LonLatMatrix)
 
 	poly_file_temp = mktemp()[1]
 	open(poly_file_temp, "w") do io
@@ -586,60 +918,65 @@ function Intersect_track_blocksegments(segments_df,track_matrix,rectangle_matrix
 	
 	GMTPolyLine=GMT.gmtspatial(poly_file_temp,F="l")# F="l" per linea non chiusa
 
-	poly_coords = copy(rectangle_matrix)
-	
-	if poly_coords[1,1] != poly_coords[end,1] || poly_coords[1,2] != poly_coords[end,2]
-		poly_coords = vcat(poly_coords, poly_coords[1:1, :])
-	end
-
-	poly_file_temp = mktemp()[1]
-	open(poly_file_temp, "w") do io
-	
-		for i in 1:size(poly_coords,1)
-			println(io, "$(poly_coords[i,1]) $(poly_coords[i,2])")
-		end
-		
-	end
-	
-	GMTPoly=GMT.gmtspatial(poly_file_temp,F="")
-
-	LonsPoly=Float64[]
-	LatsPoly=Float64[]
-
-	LonsLine=Float64[]
-	LatsLine=Float64[]
-
-	for (k,(p1,p2)) in enumerate(segments)
-		# Scrivi il segmento k in file temporaneo
-		seg_file = mktemp()[1]
-		open(seg_file, "w") do io
-			println(io, "$(p1[1]) $(p1[2])")
-			println(io, "$(p2[1]) $(p2[2])")
-		end
-
-		GMTSegment=GMT.gmtspatial(seg_file,F="l")
-
-		inter_ds = GMT.gmtspatial(GMTSegment, GMTPolyLine, I="e")
-		if(!isempty(inter_ds))
-			println("intersection found (Line)")
-			println(typeof(float(inter_ds[1])))
-			push!(LonsLine,float(inter_ds[1]))
-			push!(LatsLine,float(inter_ds[3]))
-		end
-    
-		inter_ds = GMT.gmtspatial(GMTSegment, GMTPoly, I="e") 
-		if(!isempty(inter_ds))
-			println("intersection found")
-			println(typeof(float(inter_ds[1])))
-			push!(LonsPoly,float(inter_ds[1]))
-			push!(LatsPoly,float(inter_ds[2]))
-		end
-	end
-	
-	return GMTPolyLine,GMTPoly,LonsPoly,LatsPoly,LonsLine,LatsLine
-
+	return GMTPolyLine
 end
+### - ###
+### - ###
+### - ###
+### - ###
+function Compute_GMTPoly(LonLatMatrix) #closed GMT polygon
 
+	poly_coords = copy(LonLatMatrix)
+
+    if ((poly_coords[1,1] != poly_coords[end,1]) || (poly_coords[1,2] != poly_coords[end,2])) #Close it it is not
+        poly_coords = vcat(poly_coords, poly_coords[1, :])
+    end
+    
+    poly_file_temp = mktemp()[1]
+    open(poly_file_temp, "w") do io
+    
+        for i in 1:size(poly_coords,1)
+            println(io, "$(poly_coords[i,1]) $(poly_coords[i,2])")
+        end
+        
+    end
+    
+    GMTPoly=GMT.gmtspatial(poly_file_temp,F="")
+
+	return GMTPoly
+end
+### - ###
+### - ###
+### - ###
+### - ###
+function Parallel_and_Meridian_Intersection(half_width,start_end_points,PorM;num_points_track=500)
+
+    _, _, dataOnTrack, distances, _, _ = compute_tracks(half_width,start_end_points,num_points_track)
+    LonLatCentralTrack=DataFrame(Distances=distances, Lon=dataOnTrack[:,1], Lat=dataOnTrack[:,2])
+    
+    GMTPolyLine=Compute_GMTPolyLine(Matrix{Float64}(LonLatCentralTrack[:,[2,3]]))
+    
+    LonsParallel,LatsParallel,LonsMeridians,LatsMeridians = Intersect_track_parallel_and_meridians(GMTPolyLine,1,1);
+    
+    if(PorM==0)
+        TempMatrix=[LonsParallel LatsParallel zeros(length(LonsParallel)) zeros(length(LonsParallel)) zeros(length(LonsParallel)) ones(length(LonsParallel)) ones(length(LonsParallel)) ones(length(LonsParallel))]
+    else
+        TempMatrix=[LonsMeridians LatsMeridians zeros(length(LonsMeridians)) zeros(length(LonsMeridians)) zeros(length(LonsMeridians)) ones(length(LonsMeridians)) ones(length(LonsMeridians)) ones(length(LonsMeridians))]
+    end
+    ~,~,~,temp=compute_GNSS_profiles(half_width*1.5, start_end_points, TempMatrix);
+    
+    # Results:
+    DistancesPorM=temp.Distance
+    LonsPorM=temp.Lon
+    LatsPorM=temp.Lat;
+    
+    return DistancesPorM,LonsPorM,LatsPorM
+    
+end
+### - ###
+### - ###
+### - ###
+### - ###
 function Intersect_track_parallel_and_meridians(GMTPolyLine,step_lon,step_lat)
 
 	meridians = [((λ, -90.0), (λ, 90.0)) for λ in -180.0:step_lon:180.0]
@@ -666,10 +1003,10 @@ function Intersect_track_parallel_and_meridians(GMTPolyLine,step_lon,step_lat)
 
 		inter_ds = GMT.gmtspatial(GMTMeridian, GMTPolyLine, I="e") 
 		if(!isempty(inter_ds))
-			println("intersection found (Line)")
-			println(typeof(float(inter_ds[1])))
-			push!(LonsMeridians,float(inter_ds[1]))
-			push!(LatsMeridians,float(inter_ds[3]))
+			#println("intersection found (Line)")
+			#println(typeof(float(inter_ds[1])))
+			push!(LonsMeridians,float(inter_ds[1,1]))
+			push!(LatsMeridians,float(inter_ds[1,2]))
 		end
     
 	end
@@ -689,14 +1026,51 @@ function Intersect_track_parallel_and_meridians(GMTPolyLine,step_lon,step_lat)
 
 		inter_ds = GMT.gmtspatial(GMTParallel, GMTPolyLine, I="e") 
 		if(!isempty(inter_ds))
-			println("intersection found (Line)")
-			println(typeof(float(inter_ds[1])))
-			push!(LonsParallel,float(inter_ds[1]))
-			push!(LatsParallel,float(inter_ds[3]))
+			#println("intersection found (Line)")
+			#println(typeof(float(inter_ds[1])))
+			push!(LonsParallel,float(inter_ds[1,1]))
+			push!(LatsParallel,float(inter_ds[1,2]))
 		end
     
 	end
 	
 	return LonsParallel,LatsParallel,LonsMeridians,LatsMeridians
 
+end
+### - ###
+### - ###
+### - ###
+### - ###
+function Grid_Vel_Profile_Percentiles(half_width,start_end_points,NetCDFModel,ParallelOrOrth;num_points_track=500,up_perc_vel=97.5,low_perc_vel=2.5)
+
+    total_distance, azimuth_, _, _, _, _ = compute_tracks(half_width,start_end_points,num_points_track)
+    Info=DataFrame(Lon_Start=[start_end_points[1]], Lat_Start=[start_end_points[2]], Lon_End=[start_end_points[3]], Lat_End=[start_end_points[4]], Total_Distance=[total_distance], Azimuth=[azimuth_], Width=[half_width*2])
+
+    # Read the velo model
+    vDat=Dataset(NetCDFModel)
+    lon=Vector(vDat["lon"][:])
+    lat=Vector(vDat["lat"][:])
+    ve=Matrix(vDat["Ve"])
+    vn=Matrix(vDat["Vn"])
+    vp, vo = compute_parorth_grid(ve, vn, Info.Azimuth[1])
+
+    if(ParallelOrOrth) #true is parallel
+        veloModel=vp
+    else
+        veloModel=vo
+    end
+
+    temp_file = mktemp()[1]
+    
+    write_to_netcdf(temp_file,lon,lat,veloModel)
+
+    _, _, _, ctv, cpv=compute_profile_from_grid(half_width,start_end_points,temp_file);
+    
+    GVel=percentile_from_cross_sections(up_perc_vel,CrossProfileValues=cpv);
+    LVel=percentile_from_cross_sections(low_perc_vel,CrossProfileValues=cpv);
+    MVel=percentile_from_cross_sections(50,CrossProfileValues=cpv);
+
+    DistanceVel=ctv.Distances
+
+    return DistanceVel,GVel,LVel,MVel
 end

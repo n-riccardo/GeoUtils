@@ -1,6 +1,9 @@
 # Define the Earth's radius
 # https://www.jpz.se/Html_filer/wgs_84.html
 global const Earth_Radius = 6371.0087714 #km
+global const Earth_SemimajorAxis = 6378.137 #km
+global const Earth_SemiminorAxis = 6356.75231424518 #km
+global const Earth_Eccentricity=0.081819190842622
 
 """
 Returns distance in km between two points along a rhumb line.
@@ -41,6 +44,47 @@ function rhumb_distance(LonLat1::Vector{<:Real}, LonLat2::Vector{<:Real})
     dist = sqrt((ΔL^2) + (q^2) * (Δλ^2)) * Earth_Radius
 
     return dist
+end
+
+
+function rhumb_distance_WGS84(LonLat1::Vector{<:Real}, LonLat2::Vector{<:Real}) # Not super-sure about it; check needed
+
+    lon_a = deg2rad(LonLat1[1])
+    lat_a = deg2rad(LonLat1[2])
+
+    lon_b = deg2rad(LonLat2[1])
+    lat_b = deg2rad(LonLat2[2])
+    
+    Δλ = lon_b - lon_a
+    ΔL = lat_b - lat_a
+    e_=Earth_Eccentricity
+
+    Σ_b = log(sec(lat_b)+tan(lat_b))-(e_/2)*(log(1+e_*sin(lat_b))-log(1-e_*sin(lat_b)))
+    Σ_a = log(sec(lat_a)+tan(lat_a))-(e_/2)*(log(1+e_*sin(lat_a))-log(1-e_*sin(lat_a)))
+
+    ΔΣ=Σ_b-Σ_a
+
+    #If the points lie on the same parallel:
+    small_threshold=1e-11
+    if abs(ΔΣ) > small_threshold
+        q = ΔL / ΔΣ
+    else
+        q = cos(lat_a)
+     end
+        
+    #Longitude difference must take the shortest path:
+    if(abs(Δλ) > pi)
+        if(Δλ > 0)
+            Δλ=-(2 * pi - Δλ)
+        else
+            Δλ=2 * pi + Δλ
+        end
+    end
+        
+    dist = sqrt((ΔL^2) + (q^2) * (Δλ^2)) * Earth_Radius
+    
+    return dist
+
 end
 
 """

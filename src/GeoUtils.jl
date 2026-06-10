@@ -12,6 +12,7 @@ using JuMP
 using StatsBase
 using LinearAlgebra
 using Printf
+using Clustering
 
 include("../MyCPTsCollection/manage_collection.jl")
 include("GMT_computing_profiles.jl")
@@ -20,5 +21,6 @@ include("NetCDFFunctions.jl")
 include("StrainRateTools.jl")
 include("FilteringUtilsFunctions.jl")
 include("SeismicityTools.jl")
+include("velrot.jl")
 
 end

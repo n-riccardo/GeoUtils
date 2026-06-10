@@ -10,22 +10,19 @@
 """
 FilteringUtilsFunctions is a small set of useful tools for managing GPS velocity datasets.
 """
-# Define the Earth's radius
-# https://www.jpz.se/Html_filer/wgs_84.html
-global const Earth_Radius = 6371.0087714 #km
 
 """
     WeightStations(myDataset::DataFrame, thresholdNnb::Real; dispInfo::Bool=true) -> DataFrame
 
 # Author:
-Riccardo Nucci (riccardo.nucci4@unibo.it)
+Riccardo Nucci (riccardo.nucci9@gmail.com)
 
 # Description:
 This function merges stations that are closer than a given threshold. The weighted mean of the velocities is computed, where the weights are the inverse of the velocity variance.  
 The function returns the dataset with the merged stations, and the names of modified stations are indicated with an "M" at the end.
 
 # Arguments:
-- `myDataset::DataFrame`: The dataset containing station data. The format **must** be as follows:
+- `myDataset::DataFrame`: The dataset containing station data. The dataframe **must** contain:
     - `Long`: Longitude of the station  
     - `Lat`: Latitude of the station  
     - `E_Rate`: East velocity of the station  
@@ -34,7 +31,6 @@ The function returns the dataset with the merged stations, and the names of modi
     - `σ_E`: East velocity uncertainty of the station  
     - `σ_N`: North velocity uncertainty of the station  
     - `σ_U`: Up velocity uncertainty of the station  
-    - `ρ`: Correlation of East and North velocities (not used)  
     - `Site`: Name of the station  
 
 - `thresholdNnb::Real`: The threshold distance (in km) used to determine whether two stations are considered neighbors.  
@@ -50,8 +46,9 @@ The function returns the dataset with the merged stations, and the names of modi
 - Spherical Earth approx. is used
 
 """
-function WeightStations(myDataset::DataFrame, thresholdNnb::Real; dispInfo::Bool=true)
+function WeightStations(myDatasetin::DataFrame, thresholdNnb::Real; dispInfo::Bool=true)
 
+    myDataset=copy(myDatasetin)
     print("-> WeightStations function (29/11/24) \n")
     print("-> Your threshold is ", thresholdNnb, " km \n")
     
@@ -160,14 +157,162 @@ function WeightStations(myDataset::DataFrame, thresholdNnb::Real; dispInfo::Bool
 
 end
 
+function WeightStationsV2(myDatasetin::DataFrame, thresholdNnb::Real; dispInfo::Bool=true)
+
+    myDataset=copy(myDatasetin)
+    println("-> WeightStations function (9/06/26) \n")
+    println("-> Your threshold is $thresholdNnb km \n")
+
+    copyDataset = copy(myDataset)
+    copyDataset.Site = Vector{String}(copyDataset.Site)
+
+    distance_matrix = compute_distance_matrix(myDataset.Long, myDataset.Lat)
+    
+    used_indices = Set{Int}()
+
+    for indx in 1:nrow(myDataset)
+        if indx in used_indices
+            continue
+        end
+
+        # Trova i vicini entro la soglia
+        neighbor_indices = findall(distance_matrix[:, indx] .<= thresholdNnb)
+        
+        if length(neighbor_indices) > 1
+            myDatasetPartial = myDataset[neighbor_indices, :]
+            newDataset = StationWeightedMean(myDatasetPartial)
+            
+            # Applica la media alla stazione "pivot"
+            copyDataset.Long[indx]   = newDataset.Long[1]
+            copyDataset.Lat[indx]    = newDataset.Lat[1]
+            copyDataset.E_Rate[indx] = newDataset.E_Rate[1]
+            copyDataset.N_Rate[indx] = newDataset.N_Rate[1]
+            copyDataset.U_Rate[indx] = newDataset.U_Rate[1]
+            copyDataset.σ_E[indx]    = newDataset.σ_E[1]
+            copyDataset.σ_N[indx]    = newDataset.σ_N[1]
+            copyDataset.σ_U[indx]    = newDataset.σ_U[1]
+            copyDataset.Site[indx]   = myDataset.Site[indx][1:end-1]*"M"
+
+            if dispInfo
+                site_names = myDatasetPartial.Site
+                println("Stations $site_names with indices: $neighbor_indices have been weighted and merged\n")
+            end
+
+            for temp_indx in neighbor_indices
+                if temp_indx != indx
+                    push!(used_indices, temp_indx)
+                end
+            end
+        end
+    end
+
+    deleteat!(copyDataset, sort(collect(used_indices)))
+    
+    olddim = nrow(myDataset)
+    newdim = nrow(copyDataset)
+    diffdim = olddim - newdim
+
+    println("Finished. Overview:")
+    println("From $olddim stations to $newdim stations with $diffdim total stations averaged.")
+
+    return copyDataset
+
+end
+
+function StationWeightedMean(myDataset)
+    we = 1.0 ./ (myDataset.σ_E .^ 2)
+    vn_mean = sum(we .* myDataset.E_Rate) / sum(we)
+    se_mean = 1.0 / sqrt(sum(we))
+
+    wn = 1.0 ./ (myDataset.σ_N .^ 2)
+    v_n_mean = sum(wn .* myDataset.N_Rate) / sum(wn)
+    sn_mean = 1.0 / sqrt(sum(wn))
+
+    wu = 1.0 ./ (myDataset.σ_U .^ 2)
+    vu_mean = sum(wu .* myDataset.U_Rate) / sum(wu)
+    su_mean = 1.0 / sqrt(sum(wu))
+
+    mean_lon = mean_longitude(myDataset.Long)
+    mean_lat = mean(myDataset.Lat) 
+
+    return DataFrame(
+        Long = mean_lon, Lat = mean_lat,
+        E_Rate = vn_mean, N_Rate = v_n_mean, U_Rate = vu_mean,
+        σ_E = se_mean, σ_N = sn_mean, σ_U = su_mean
+    )
+end
+
+function WeightStationsDBSCAN(myDatasetin::DataFrames.DataFrame, thresholdNnb::Real; dispInfo::Bool=true)
+    println("-> Starting DBSCAN WeightStations...")
+
+    myDataset=copy(myDatasetin)
+
+    D = compute_distance_matrix(myDataset.Long, myDataset.Lat)
+
+    # min_neighbors=1 implies no noise label for points
+    db = Clustering.dbscan(D, thresholdNnb, min_neighbors=1, metric= nothing)
+
+    copyDataset = copy(myDataset)
+    
+    used_indices = Set{Int}()
+    #unique_assignments=sort(unique(db.assignments)) #total groups
+    
+    for indx in 1:nrow(myDataset)
+    
+        if indx in used_indices
+            continue
+        end
+    
+        my_group=db.assignments[indx]
+        neighbor_indices = findall((db.assignments) .== my_group)
+    
+        if length(neighbor_indices) > 1
+            myDatasetPartial = myDataset[neighbor_indices, :]
+            newDataset = StationWeightedMean(myDatasetPartial)
+            
+            # Applica la media alla stazione "pivot"
+            copyDataset.Long[indx]   = newDataset.Long[1]
+            copyDataset.Lat[indx]    = newDataset.Lat[1]
+            copyDataset.E_Rate[indx] = newDataset.E_Rate[1]
+            copyDataset.N_Rate[indx] = newDataset.N_Rate[1]
+            copyDataset.U_Rate[indx] = newDataset.U_Rate[1]
+            copyDataset.σ_E[indx]    = newDataset.σ_E[1]
+            copyDataset.σ_N[indx]    = newDataset.σ_N[1]
+            copyDataset.σ_U[indx]    = newDataset.σ_U[1]
+            copyDataset.Site[indx]   = myDataset.Site[indx][1:end-1]*"M"
+    
+            if dispInfo
+                site_names = myDatasetPartial.Site
+                println("Stations $site_names with indices: $neighbor_indices have been weighted and merged\n")
+            end
+    
+            for temp_indx in neighbor_indices
+                if temp_indx != indx
+                    push!(used_indices, temp_indx)
+                end
+            end
+        end
+    end
+    
+    deleteat!(copyDataset, sort(collect(used_indices)))
+    
+    olddim = nrow(myDataset)
+    newdim = nrow(copyDataset)
+    diffdim = olddim - newdim
+    
+    println("Finished. Overview:")
+    println("From $olddim stations to $newdim stations with $diffdim total stations averaged.")
+
+    return copyDataset
+end
 """
     compute_distance_matrix(lon::Array{Float64,1}, lat::Array{Float64,1}) -> Matrix{Float64}
 
 # Author:
-Riccardo Nucci (riccardo.nucci4@unibo.it)
+Riccardo Nucci (riccardo.nucci9@gmail.com)
 
 # Description:
-Computes the distance between each pair of stations.
+Computes the distance (great circle) between each pair of stations.
 
 # Arguments:
 - `lon::Array{Float64,1}`: Longitudes of the stations.  
@@ -276,25 +421,19 @@ end
     -> Tuple{Array{Float64,1}, Array{Float64,1}, Array{Float64,1}, Array{Int64,1}}
 
 # Author:
-Riccardo Nucci (riccardo.nucci4@unibo.it)
+Riccardo Nucci (riccardo.nucci9@gmail.com)
 
 # Description:
 Finds the variability of the velocity field within a characteristic length around each station.  
 The variability is defined as the difference between the third and first quartiles of the velocities of stations closer than the **Lc**.
 
 # Arguments:
-- `my_dataset::DataFrame`: The dataset containing station data. The format **must** be as follows:
+- `my_dataset::DataFrame`: The dataset containing station data. The format **must** include:
     - `Long`: Longitude of the station  
     - `Lat`: Latitude of the station  
     - `E_Rate`: East velocity of the station  
     - `N_Rate`: North velocity of the station  
     - `U_Rate`: Up velocity of the station  
-    - `σ_E`: East velocity uncertainty of the station (not used)  
-    - `σ_N`: North velocity uncertainty of the station (not used)  
-    - `σ_U`: Up velocity uncertainty of the station (not used)  
-    - `ρ`: Correlation of East and North velocities (not used)  
-    - `Site`: Name of the station (not used)  
-
 - `Lc::Float64`: The characteristic distance (in km) within which stations are considered for variability computation.  
 
 # Optional Arguments:
@@ -381,14 +520,14 @@ end
     -> Tuple{DataFrame, Array{Float64,1}, Array{Float64,1}, Array{Float64,1}}
 
 # Author:
-Riccardo Nucci (riccardo.nucci4@unibo.it)
+Riccardo Nucci (riccardo.nucci9@gmail.com)
 
 # Description:
 This function helps detect anomalous velocities in the dataset by solving an optimization problem.  
 The objective is to find velocities of the stations that are most compatible with the bulk variability analyzed at a certain characteristic length within the uncertainties.
 
 # Arguments:
-- `my_dataset::DataFrame`: The dataset containing station data. The format **must** be as follows:
+- `my_dataset::DataFrame`: The dataset containing station data. The format **must** include:
     - `Long`: Longitude of the station  
     - `Lat`: Latitude of the station  
     - `E_Rate`: East velocity of the station  
@@ -397,8 +536,6 @@ The objective is to find velocities of the stations that are most compatible wit
     - `σ_E`: East velocity uncertainty of the station  
     - `σ_N`: North velocity uncertainty of the station  
     - `σ_U`: Up velocity uncertainty of the station  
-    - `ρ`: Correlation of East and North velocities (not used)  
-    - `Site`: Name of the station (not used)  
 
 - `Δv_dataset::DataFrame`: The dataset containing the variability of the velocities. The format **must** be as follows:
     - `Δve`: Variability of the East velocities  
@@ -543,23 +680,19 @@ end
     find_suspect_outliers(my_dataset::DataFrame, my_smoothed_datset::DataFrame, use_uncertainties::Bool=false) -> Array{Float64,1}
 
 # Author:
-Riccardo Nucci (riccardo.nucci4@unibo.it)
+Riccardo Nucci (riccardo.nucci9@gmail.com)
 
 # Description:
 This function compute the compatibility of the original velocities with respect to the smoothed velocities. It return a `log_likelihood` value for each station, representing the estimate of compatibility.
 
 # Arguments:
-- `my_dataset::DataFrame`: The dataset containing station data. The format **must** be as follows:
-    - `Long`: Longitude of the station  
-    - `Lat`: Latitude of the station  
+- `my_dataset::DataFrame`: The dataset containing station data. The format **must** include:
     - `E_Rate`: East velocity of the station  
     - `N_Rate`: North velocity of the station  
     - `U_Rate`: Up velocity of the station  
     - `σ_E`: East velocity uncertainty of the station  
     - `σ_N`: North velocity uncertainty of the station  
     - `σ_U`: Up velocity uncertainty of the station  
-    - `ρ`: Correlation of East and North velocities (not used)  
-    - `Site`: Name of the station (not used)  
 - `my_smoothed_datset::DataFrame`: The dataset containing the smoothed velocity field. The format **must** be as follows:
     - `E_Rate`: East velocity of the station  
     - `N_Rate`: North velocity of the station  
@@ -613,6 +746,110 @@ function find_suspect_outliers(my_dataset,my_smoothed_datset,use_uncertainties=f
 
 end
 
+function spatial_coherence_with_uncertainty(lon, lat, vE, vN, sigE, sigN, λs; min_N=5, min_D=30, weight_unc=1)
+    n = length(lon)
+    m = length(λs)
+    ScoreStat = zeros(n, m)
+
+    for (k, λ) in enumerate(λs)
+        cutoff_dist = 3.0 * λ
+
+        for i in 1:n
+            wsum = 0.0
+            e_acc = 0.0
+            n_acc = 0.0
+            count_min_D = 0
+            
+            local_weights = Float64[]
+
+            for j in 1:n
+                if j != i
+                    d = haversine((lon[i], lat[i]), (lon[j], lat[j]), Earth_Radius)
+                    if d <= min_D
+                        count_min_D += 1
+                    end
+
+                    if d <= cutoff_dist
+                        w = exp(-(d^2) / (λ^2))
+                        push!(local_weights, w)
+                        
+                        wsum += w
+                        e_acc += w * vE[j]
+                        n_acc += w * vN[j]
+                    end
+                end
+            end
+
+            if count_min_D < min_N || length(local_weights) < min_N
+                ScoreStat[i, k] = NaN
+            else
+                # Local mean
+                vE_med = e_acc / (wsum + 1e-12)
+                vN_med = n_acc / (wsum + 1e-12)
+
+                local_resids = Float64[]
+                local_uncertainties = Float64[]
+
+                for j in 1:n
+                    if j != i
+                        d = haversine((lon[i], lat[i]), (lon[j], lat[j]), Earth_Radius)
+                        if d <= cutoff_dist
+
+                            r_j = sqrt((vE[j] - vE_med)^2 + (vN[j] - vN_med)^2)
+                            push!(local_resids, r_j)
+
+                            sig_j = sqrt(sigE[j]^2 + sigN[j]^2)
+                            push!(local_uncertainties, sig_j)
+                        end
+                    end
+                end
+
+                # Variability of the neighbors (MAD)
+                med = median(local_resids)
+                mad = median(abs.(local_resids .- med)) * 1.4826
+
+                # Uncertainty of the neighbors
+                local_sig_floor = median(local_uncertainties)
+
+                # Correction: tollerate considering uncertainties
+                total_local_variance = mad^2 + (weight_unc*local_sig_floor)^2
+                denominator = sqrt(total_local_variance)
+
+                # Residual of the i-th station
+                rstat = sqrt((vE[i] - vE_med)^2 + (vN[i] - vN_med)^2)
+                
+                # Instrumental uncertainties
+                sig_i = sqrt(sigE[i]^2 + sigN[i]^2)
+
+                # Modified Z-score
+                total_denominator = sqrt(denominator^2 + (weight_unc*sig_i)^2)
+
+                ScoreStat[i, k] = (rstat-med) / total_denominator
+            end
+        end
+    end
+
+    MedianScore = map(1:n) do i
+        row = view(ScoreStat, i, :)
+        valid = filter(!isnan, row)
+        isempty(valid) ? NaN : median(valid)
+    end
+
+    PeakScore = map(1:n) do i
+        row = view(ScoreStat, i, :)
+        valid = filter(!isnan, row)
+        isempty(valid) ? NaN : maximum(valid)
+    end
+
+    STDScore = map(1:n) do i
+        row = view(ScoreStat, i, :)
+        valid = filter(!isnan, row)
+        isempty(valid) ? NaN : std(valid)
+    end
+
+
+    return ScoreStat, MedianScore, PeakScore, STDScore
+end
 """
     RemoveByCircularArea(my_dataset::DataFrame, coords_and_radius::Matrix{Float64}) -> FinalDataset::DataFrame
 
@@ -623,17 +860,9 @@ Riccardo Nucci (riccardo.nucci4@unibo.it)
 Stations within a certain radius from a given point are removed from the dataset. The function returns the dataset without the stations in the circular area.
 
 *Required arguments:*
-- my\\_dataset::DataFrame: the dataset containing the stations. The format MUST be the following:
+- my\\_dataset::DataFrame: the dataset containing the stations. The format MUST include:
     - Long: Longitude of the station
     - Lat: Latitude of the station
-    - E_Rate: East velocity of the station
-    - N_Rate: North velocity of the station
-    - U_rate: Up velocity of the station
-    - σ_E: East velocity uncertainty of the station
-    - σ_N: North velocity uncertainty of the station
-    - σ_U: Up velocity uncertainty of the station
-    - ρ: Correlation of East and North velocities (not used)
-    - Site: Name of the station (not used)
 - coords\\_and\\_radius::Matrix{Float64}: a matrix containing in each row: longitude, latitude, and radius of the circular area
 """
 function RemoveByCircularArea(myDataset, coords_and_radius)
@@ -741,7 +970,7 @@ end
 - MasterDataset, Dataframe, Fomat: lon,lat,ve,vn,vu,se,sn,su,name
 - SlaveDataset, Dataframe, Fomat: lon,lat,ve,vn,vu,se,sn,su,name
 - Dtreshold: distance threshold in km
-"""
+
 function RotateVeloField(MasterDataset, SlaveDataset, Dtreshold; components=3)
 
     # Find the common sites
@@ -800,7 +1029,7 @@ function RotateVeloField(MasterDataset, SlaveDataset, Dtreshold; components=3)
     end
     
     # Get the parameters through least square solution
-    w = G \ δV
+    w = G \\ δV
     
     # Now rotote Slave into Master
     vEnew=Float64[]
@@ -875,6 +1104,7 @@ function RotateVeloField(MasterDataset, SlaveDataset, Dtreshold; components=3)
     return MasterDataset, SlaveDataset, MasterIndices, SlaveIndices
 
 end
+"""
 
 function call_velrot(MasterDataset, SlaveDataset, Dtreshold; param_opt="TR",vert_weight=1)
 
@@ -911,7 +1141,15 @@ function call_velrot(MasterDataset, SlaveDataset, Dtreshold; param_opt="TR",vert
 
     # Call velrot that rotates sys1 (slave) into sys2 (master)
     cd(where_my_functions_are*"/../temp/") do 
-        run(`velrot Slave.vel eura Master.vel eura output_velrot.txt eura link.file $vert_weight $param_opt`)
+        #run(`velrot Slave.vel eura Master.vel eura output_velrot.txt eura link.file $vert_weight $param_opt`)
+        args = [
+            "Slave.vel", "eura",
+            "Master.vel", "eura",
+            "output_velrot.txt", "eura",
+            "link.file", string(vert_weight), param_opt
+        ]
+    
+        run_velrot(args)
     end
 
     outVelrotName=where_my_functions_are*"/../temp/output_velrot.txt";
@@ -1079,7 +1317,7 @@ function combine_velo_field(MasterDataset, SlaveDataset, Dtreshold)
     FinalDataset = vcat(MasterDataset, SlaveDataset)
 
     # order by the last column
-    FinalDataset = sort(FinalDataset,  order(:name))
+    sort!(FinalDataset,  order(:name))
 
     return FinalDataset
 
@@ -1101,46 +1339,111 @@ function wrap_longitude(lon::Real)
 
 end
 
-function make_unique_names(vector) #Should be improved...
-    prefix_counts = Dict{String, Int}()
-    result = String[]
+function make_unique_names(names::Vector{String})
 
-    for name in vector
-        prefix = name[1:3]            # first 3 letters
-        key = name[1:4]               # first 4 letters, used to detect duplicates
-
-        count = get!(prefix_counts, key, 0)
-        if count == 0
-            push!(result, name)
-        else
-            new_name = prefix * string(count - 1) * "_GPS"
-            println("Renamed: $name → $new_name")
-            push!(result, new_name)
-        end
-        prefix_counts[key] += 1
+    # expected input of exactly 8 chars:
+    check_result, _=check_station_name_length(names, N=8)
+    if(!check_result)
+        error("Invalid input: station names must be exactly 8 characters long")
     end
 
-    return result
+    used = Set{String}() #Set is made of unique elements
+    modified = Int[]
+    out = String[]
+    overflow = false
+
+    for (i, name) in pairs(names)
+        n = 0
+        new = name
+
+        if new in used
+            base = name[1:3]
+            extension = name[5:8] #Should be "_GPS"
+            n = 0
+
+            while true
+                new = base*string(n)*extension
+                if !(new in used)
+                    break
+                end
+                n=n+1
+                if(n>9)
+                    overflow=true; #4 char rule broken
+                end
+            end
+
+            push!(modified, i)
+            println("Renamed: $name → $new")
+        end
+
+        push!(out, new)
+        push!(used, new)
+    end
+
+    if(overflow)
+        println("Overflow of 4-char format")
+    end
+    return out
+end
+
+function check_station_name_length(names::Vector{String}; N=8)
+
+    count=0
+    check_result=true
+    # expected input of exactly N chars:
+    for (i, name) in pairs(names)
+        if(length(name)!=N)
+            count=count+1
+            check_result=false
+            println("there are not $N char for each name: problem with $name at index $i")
+        end
+    end
+
+    return check_result, count
+
 end
 
 function mean_longitude(lon1, lon2; w1=1, w2=1)
 
-    lon1_rad = deg2rad(lon1)
-    lon2_rad = deg2rad(lon2)
+    return mean_longitude([lon1,lon2], w=[w1,w2])
+    #lon1_rad = deg2rad(lon1)
+    #lon2_rad = deg2rad(lon2)
 
-    x = (cos(lon1_rad)*w1 + cos(lon2_rad)*w2)/(w1+w2)
-    y = (sin(lon1_rad)*w1 + sin(lon2_rad)*w2)/(w1+w2)
+    #x = (cos(lon1_rad)*w1 + cos(lon2_rad)*w2)/(w1+w2)
+    #y = (sin(lon1_rad)*w1 + sin(lon2_rad)*w2)/(w1+w2)
 
-    mean_rad = atan(y, x)
+    #mean_rad = atan(y, x)
 	
+    #mean_deg = rad2deg(mean_rad)
+	
+	#if(mean_deg == -180)
+	#	mean_deg=180
+	#end
+		
+	#return mean_deg
+	
+end
+
+function mean_longitude(lon; w=ones(length(lon)))
+
+    x = 0.0
+    y = 0.0
+    sw = sum(w)
+
+    for (λ, wi) in zip(lon, w)
+        r = deg2rad(λ)
+        x += cos(r) * wi
+        y += sin(r) * wi
+    end
+
+    mean_rad = atan(y/sw, x/sw)
     mean_deg = rad2deg(mean_rad)
-	
-	if(mean_deg == -180)
+
+    if(mean_deg == -180)
 		mean_deg=180
 	end
-		
-	return mean_deg
-	
+
+    return mean_deg
 end
 
 function rectangleForGMT(region,llStep)
