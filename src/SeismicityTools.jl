@@ -15,32 +15,26 @@ return condThrust, condStrikeSlip, condNormal
 
 end
 
-function LabelFocalMechanisms(psmecafile)
-
-    # Assuming -Sd format: lat_orig,lon_orig,depth,mrr,mss,mee,mrs,mre,mse,exp,x,y,ev_id
-
-
-    FocalMecDataGMT=Matrix(FocalMecData[:,[2,1,3,4,5,6,7,8,9,10,11,12]]);
-    cT, cS, cN =SAK.LabelFocalMechanisms(FocalMecDataGMT[:,4],FocalMecDataGMT[:,5],FocalMecDataGMT[:,6],
-                    FocalMecDataGMT[:,7],FocalMecDataGMT[:,8],FocalMecDataGMT[:,9]);
-
-    return condThrust, condStrikeSlip, condNormal
-
-end
-
 """
 PrincipalAxesFM
 
 Get the eigenvalues and eigenvector decomposition of the moment tensor.
-Expected vectors are Mrr,Mtt,Mff,Mrt,Mrf,Mtf where the convention followed is r=up, t=south, and f=east; representing the components of a vector of moment tensors
+Expected vectors are Mrr,Mtt,Mff,Mrt,Mrf,Mtf where the convention followed is r=up, t=south, and f=east; representing the components of a vector of moment tensors.
+Do not froget that the exp.
 
 The output reference system is ENU
 Eigenvalues refer to the FULL moment tensor M as provided in input
 P-N-T (Pressure-Null-Tension) vectors are the (orthonormal) eigenvectors corresponding to the min, intermediate and max eigenvector, respectively 
 For each Moment Tensor the isotropic part is also returned: +(1/3)*trace(M)
 """
-function PrincipalAxesFM(Mrr,Mtt,Mff,Mrt,Mrf,Mtf) 
+function PrincipalAxesFM(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in;exp=ones(length(Mrr_in))) 
 
+    Mrr=Mrr_in .* (10.0 .^ (exp));
+    Mtt=Mtt_in .* (10.0 .^ (exp));
+    Mff=Mff_in .* (10.0 .^ (exp));
+    Mrt=Mrt_in .* (10.0 .^ (exp));
+    Mrf=Mrf_in .* (10.0 .^ (exp));
+    Mtf=Mtf_in .* (10.0 .^ (exp));
     # Convention is r is up, t (s) is south, and f (e) is east.
     # Results are given in ENU (East-North-Up) convention
 
@@ -112,7 +106,11 @@ HorPrincipalAxesFM
 
 Same of PrincipalAxesFM but using horizontal M tensor
 """
-function HorPrincipalAxesFM(Mtt,Mff,Mtf) #Same of PrincipalAxesFM but 2D
+function HorPrincipalAxesFM(Mtt_in,Mff_in,Mtf_in;exp=ones(length(Mtt_in))) #Same of PrincipalAxesFM but 2D
+
+    Mtt=Mtt_in .* (10.0 .^ (exp));
+    Mff=Mff_in .* (10.0 .^ (exp));
+    Mtf=Mtf_in .* (10.0 .^ (exp));
 
     MinEigenValues=[]
     MaxEigenValues=[]
@@ -166,7 +164,7 @@ end
 """
 FocalMechanismsType
 
-Evaluate the type of focal mechanism in the sense proposed by Frohlich and Apperson (1992)
+Evaluate the type of focal mechanism in the sense proposed by  and Apperson (1992)
 """
 function FocalMechanismsType(Mrr,Mtt,Mff,Mrt,Mrf,Mtf)
 
@@ -206,5 +204,26 @@ function FocalMechanismsType(Mrr,Mtt,Mff,Mrt,Mrf,Mtf)
     end
 
     return fthrust,fstrikeslip,fnormal
+
+end
+
+function MomentTensorsSum(Mrr,Mtt,Mff,Mrt,Mrf,Mtf,exps)
+
+    Mrrsum=sum(Mrr.*(10.0 .^ exps))
+    Mttsum=sum(Mtt.*(10.0 .^ exps))
+    Mffsum=sum(Mff.*(10.0 .^ exps))
+    Mrtsum=sum(Mrt.*(10.0 .^ exps))
+    Mrfsum=sum(Mrf.*(10.0 .^ exps))
+    Mtfsum=sum(Mtf.*(10.0 .^ exps))
+
+    MSumVec=[Mrrsum,Mttsum,Mffsum,Mrtsum,Mrfsum,Mtfsum]
+
+    # Normalize in some way
+    MaxValue=maximum(MSumVec)
+    expFinal=floor(log10(MaxValue))
+
+    MsumFinal=MSumVec ./ (10^(expFinal))
+
+    return MsumFinal[1],MsumFinal[2],MsumFinal[3],MsumFinal[4],MsumFinal[5],MsumFinal[6],expFinal
 
 end

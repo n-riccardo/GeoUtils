@@ -1,11 +1,11 @@
 module GeoUtils
 
 using GMT
-using LibGEOS
+using LibGEOS #In order to work with polygons
 using CSV
 using DataFrames
 using DelimitedFiles
-using Distances
+using H3.API
 using GeographicLib
 using Ipopt
 using JuMP
@@ -15,6 +15,7 @@ using Printf
 using Clustering
 
 include("../MyCPTsCollection/manage_collection.jl")
+include("GeoFunctions.jl")
 include("GMT_computing_profiles.jl")
 include("GMT_fast_plotting.jl")
 include("NetCDFFunctions.jl")

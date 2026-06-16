@@ -6,7 +6,7 @@
 
 const global where_my_functions_are = @__DIR__
 
-include(where_my_functions_are*"/RhumbLinesCalculations.jl")
+#include(where_my_functions_are*"/RhumbLinesCalculations.jl")
 
 """
 compute\\_GNSS\\_profiles:
@@ -590,10 +590,7 @@ function SegmentIntersection(half_width::Real,start_end_points::Vector{<:Real},s
     return SegmentIntersection(half_width,start_end_points,segments_df;num_points_track=num_points_track)
 
 end
-### - ###
-### - ###
-### - ###
-### - ###
+
 function SegmentIntersection(half_width::Real,start_end_points::Vector{<:Real},segments_df::DataFrame;num_points_track::Int64=500)
 
     _, _, dataOnTrack, distances, lon_rect, lat_rect = compute_tracks(half_width,start_end_points,num_points_track)
@@ -623,7 +620,7 @@ IsolinesIntersection:
 Riccardo Nucci (riccardo.nucci9@gmail.com)
 
 *Description:*
-Gives the profile of structures defined through isolines. The input format is rigid: three columns separated as lon-lat-depth.
+Gives the profile of structures defined through isolines. The input format is: three columns separated as lon-lat-depth.
 -  NaN rows separate different fault STRUCTURES (not isolines)
 -  different isolines referring to the same structure are recognized on the basis of the depth field, no separation
 
@@ -682,7 +679,7 @@ Given a dataframe of fault traces (as lon-lat rows; NaN-NaN separation between f
 """
 function Intersect_track_blocksegments(segments_df_input,track_ll_matrix,rectangle_ll_matrix)
 
-my_segment_df=segments_df_input[:,[1,2]] #Suppose lon-lat for the first two columns
+my_segment_df=segments_df_input[:,[1,2]] #Assume lon-lat for the first two columns
 
 rename!(my_segment_df, [:lon, :lat])
 
@@ -1074,3 +1071,7 @@ function Grid_Vel_Profile_Percentiles(half_width,start_end_points,NetCDFModel,Pa
 
     return DistanceVel,GVel,LVel,MVel
 end
+### - ###
+### - ###
+### - ###
+### - ### Add a 'Densify isolines function'

@@ -172,13 +172,13 @@ function read_sys(path::String)
     open(path, "r") do io
         for line in eachline(io)
             isempty(strip(line)) && continue
-            startswith(line, " ") || continue
+            # startswith(line, " ") || continue
             fields = split(line)
             length(fields) >= 13 || continue
             parsed = tryparse.(Float64, fields[1:12])
             any(isnothing, parsed) && continue
             values = Float64[x::Float64 for x in parsed]
-            name = fields[13][1:min(end, 8)]
+            name = first(fields[13], 8) #safer for UTF-8
 
             lon = values[1]
             lat = values[2]
@@ -668,10 +668,13 @@ function write_velocity_line(io, prefix::Char, site::Site, symbol::Char)
     dsig_e = sqrt(site.cov_neu[2, 2]) * 1000.0
     dsig_u = sqrt(site.cov_neu[3, 3]) * 1000.0
     rho = site.cov_neu[1, 2] / (dsig_n * dsig_e / 1e6)
-    @printf(io, "%c%10.5f %10.5f %8.2f %7.2f %7.2f %7.2f %7.2f %7.2f %6.3f  %8.2f %7.2f %7.2f %-8s%c\n",
+
+    name = first(site.name, 8) # manage incompatibilities with UFT-8
+
+    @printf(io, "%c%10.5f %10.5f %8.2f %7.2f %7.2f %7.2f %7.2f %7.2f %6.3f  %8.2f %7.2f %7.2f %s%c\n",
             prefix, lon, lat, dn[2] * 1000.0, dn[1] * 1000.0,
             dn[2] * 1000.0, dn[1] * 1000.0, dsig_e, dsig_n, rho,
-            dn[3] * 1000.0, dn[3] * 1000.0, dsig_u, site.name, symbol)
+            dn[3] * 1000.0, dn[3] * 1000.0, dsig_u, name, symbol)
 end
 
 function output_frame(io, opt::Options, sys1::Vector{Site}, sys2::Vector{Site})

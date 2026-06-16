@@ -1,3 +1,106 @@
+############################################################
+### Useful functions for ternary plots
+############################################################
+
+function spherical_area(A, B, C)
+    num = dot(A, cross(B, C))
+    den = 1 + dot(A,B) + dot(B,C) + dot(A,C)
+    return 2 * atan(num/den)
+end
+
+function spherical_barycentric(P, A, B, C)
+    ΩABC = spherical_area(A, B, C)
+
+    λA = spherical_area(P, B, C) / ΩABC
+    λB = spherical_area(P, C, A) / ΩABC
+    λC = spherical_area(P, A, B) / ΩABC
+
+    return λA, λB, λC
+end
+
+function rgb_to_hex(colors)
+    "#" .* [
+        join(string.(round.(Int, 255 .* c), base=16, pad=2), "")
+        for c in eachrow(colors)
+    ]
+end
+function map_ternary_color_octant(lon,lat,cA,cB,cC)
+
+    # longitude
+    θ=deg2rad.(lon)
+    # colatitude:
+    φ=deg2rad.(90 .- lat)
+
+    # Octant vertices (spherical triangle)
+    A = normalize([1.0, 0.0, 0.0])
+    B = normalize([0.0, 1.0, 0.0])
+    C = normalize([0.0, 0.0, 1.0])
+
+    Cmap = zeros(length(θ),3)
+    λAvec = zeros(length(θ))
+    λBvec = zeros(length(θ))
+    λCvec = zeros(length(θ))
+
+    for i in eachindex(θ)
+        th = θ[i]
+        ph = φ[i]
+
+        # Cartesian coorinates
+        x = cos(th)*sin(ph)
+        y = sin(th)*sin(ph)
+        z = cos(ph)
+
+        P = [x, y, z]
+
+        # Barycentric coordinates
+        λA, λB, λC = spherical_barycentric(P, A, B, C)
+        λAvec[i]=λA
+        λBvec[i]=λB
+        λCvec[i]=λC
+
+        # Color interpolation
+        color = λA .* cA .+ λB .* cB .+ λC .* cC
+        Cmap[i,:] =  color
+    end
+
+    return Cmap, λAvec, λBvec, λCvec 
+
+end
+function map_ternary_color_octant(X,Y,Z,cA,cB,cC)
+    
+    # Octant vertices (spherical triangle)
+    A = normalize([1.0, 0.0, 0.0])
+    B = normalize([0.0, 1.0, 0.0])
+    C = normalize([0.0, 0.0, 1.0])
+
+    Cmap = zeros(length(X),3)
+    λAvec = zeros(length(X))
+    λBvec = zeros(length(X))
+    λCvec = zeros(length(X))
+
+    for i in eachindex(X)
+
+        x = X[i]
+        y = Y[i]
+        z = Z[i]
+    
+        P = [x, y, z]
+    
+        # Barycentric coordinates
+        λA, λB, λC = spherical_barycentric(P, A, B, C)
+        λAvec[i]=λA
+        λBvec[i]=λB
+        λCvec[i]=λC
+
+        # Color interpolation
+        color = λA .* cA .+ λB .* cB .+ λC .* cC
+        Cmap[i,:] =  color
+    end
+    
+    return Cmap, λAvec, λBvec, λCvec 
+
+end
+
 """
 plot\\_vector\\_map_S:
 
@@ -34,7 +137,7 @@ Plot a vector velocity field on a map using GMT.jl. My favorite options are set 
 """
 function plot_vector_map_S(range_plot::Vector{<:Real}, scale_plot::Real, velo_data1::Matrix{<:Real}; legend_data::Matrix{<:Real}=[0.0 0.0 0.0 0.0], 
     leg_offset::Vector{<:Real} = [0.0, 0.0], leg_font::String = "11p,Helvetica-Bold,black", projection_s::String = "M15c", 
-    frame_s::String = "af", color::String ="blue", arrow::String = "0.2c+a45+p0.025c+e+n30/0.005+g", 
+    frame_s::String = "af", color::String ="blue", arrow::String = "0.2c+a45+e+n30/0.005+g", 
     pen_coast::String = "0.01c,black", pen_velo::String = "0.012c,black", CI::String = "0.95", Are_you_Overwriting::Bool = false, Sr::Bool = false,
     transparency::String="50")
 
@@ -181,6 +284,16 @@ function plot_fancy_scatterplot(x::Vector{<:Real}, y::Vector{<:Real}, z::Vector{
     
 end
 
+"""
+matrix_strain must have:
+1,2: longitude, latitude, of station (-: option interchanges order)
+
+3: eps1, the most extensional eigenvalue of strain tensor, with extension taken positive.
+
+4: eps2, the most compressional eigenvalue of strain tensor, with extension taken positive.
+
+5: azimuth of eps2 in degrees CW from North.
+"""
 function PlotFancyHorStrainTensor(range_plot::Vector{<:Real}, scale_plot::Real, matrix_strain::Matrix{<:Real}; legend_data::Matrix{<:Real}=[0.0 0.0 0.0 0.0 0.0], 
     leg_offset::Vector{<:Real} = [0.0, 0.0], leg_font::String = "11p,Helvetica-Bold,black", projection_s::String = "M15c", 
     frame_s::String = "af", colors::Vector{String} =["blue","red"], arrow::String = "0.2c+a45+p0.025c+e+n30/0.005+g", 

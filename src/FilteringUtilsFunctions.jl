@@ -243,6 +243,7 @@ function StationWeightedMean(myDataset)
 end
 
 function WeightStationsDBSCAN(myDatasetin::DataFrames.DataFrame, thresholdNnb::Real; dispInfo::Bool=true)
+    
     println("-> Starting DBSCAN WeightStations...")
 
     myDataset=copy(myDatasetin)
@@ -255,8 +256,10 @@ function WeightStationsDBSCAN(myDatasetin::DataFrames.DataFrame, thresholdNnb::R
     copyDataset = copy(myDataset)
     
     used_indices = Set{Int}()
+
+    check_on_noise=sum((db.assignments) .== 0)
     #unique_assignments=sort(unique(db.assignments)) #total groups
-    
+    println("Noise:  $check_on_noise")
     for indx in 1:nrow(myDataset)
     
         if indx in used_indices
@@ -283,7 +286,7 @@ function WeightStationsDBSCAN(myDatasetin::DataFrames.DataFrame, thresholdNnb::R
     
             if dispInfo
                 site_names = myDatasetPartial.Site
-                println("Stations $site_names with indices: $neighbor_indices have been weighted and merged\n")
+                println("Stations $site_names with indices: $neighbor_indices have been weighted and merged")
             end
     
             for temp_indx in neighbor_indices
@@ -372,48 +375,6 @@ function compute_distances_from_point(lons,lats,lonp,latp)
 
 	return distance_vec
 	
-end
-
-"""
-    km2deg(distance_km::Float64) -> Float64
-
-# Author:
-Riccardo Nucci (riccardo.nucci4@unibo.it)
-
-# Description:
-Convert a distance from kilometers to degrees of latitude in a Spherical Earth.
-
-"""
-function km2deg(distance_km::Float64)::Float64
-
-    degrees_per_km = 360.0 / (2 * π * Earth_Radius)
-
-    return distance_km * degrees_per_km
-
-end
-
-"""
-    km2deg_longitude(distance_km::Float64) -> Float64
-
-# Author:
-Riccardo Nucci (riccardo.nucci4@unibo.it)
-
-# Description:
-Convert a distance from kilometers to degrees of longitude in a Spherical Earth at a certain latitude.
-
-"""
-function km2deg_longitude(distance_km::Float64, latitude::Float64)::Float64
-    
-    lat_rad = deg2rad(latitude)
-    
-    # Length of one degree of longitude at the given latitude
-    km_per_deg_longitude = Earth_Radius * cos(lat_rad) * 2 * π / 360
-    
-    # Convert distance in kilometers to degrees of longitude
-    deg_longitude = distance_km / km_per_deg_longitude
-    
-    return deg_longitude
-
 end
 
 """
@@ -854,7 +815,7 @@ end
     RemoveByCircularArea(my_dataset::DataFrame, coords_and_radius::Matrix{Float64}) -> FinalDataset::DataFrame
 
 *Author*:
-Riccardo Nucci (riccardo.nucci4@unibo.it)
+Riccardo Nucci (riccardo.nucci9@gmail.com)
 
 *Description*:
 Stations within a certain radius from a given point are removed from the dataset. The function returns the dataset without the stations in the circular area.
@@ -887,30 +848,6 @@ function RemoveByCircularArea(myDataset, coords_and_radius)
 
     return FinalDataset,indices_to_be_cleaned
 
-end
-
-function generate_circles(coords_and_radius; num_points=360)
-    circles = []
-
-    for j in 1:size(coords_and_radius, 1)
-
-        lon_center = coords_and_radius[j, 1]
-        lat_center = coords_and_radius[j, 2]
-        radius_km = coords_and_radius[j, 3]
-
-        lattrk = Float64[]
-        lontrk = Float64[]
-
-        for azimuth in range(0, 360, length=num_points)
-            lon, lat, _ = GeographicLib.forward(lon_center, lat_center, azimuth, radius_km * 1000)
-            push!(lontrk, lon)
-            push!(lattrk, lat)
-        end
-
-        push!(circles, (lontrk, lattrk))  # Store each circle as a tuple (lon_list, lat_list)
-    end
-
-    return circles
 end
 
 function RemoveByName(my_dataset, namelist; case_sensitivity=true)
@@ -1323,22 +1260,6 @@ function combine_velo_field(MasterDataset, SlaveDataset, Dtreshold)
 
 end
 
-function wrap_longitude(lon::Real)
-
-    lon_shifted = lon
-	
-    while lon_shifted <= -180
-        lon_shifted += 360
-    end
-	
-    while lon_shifted > 180
-        lon_shifted -= 360
-    end
-	
-    return lon_shifted == -180 ? 180.0 : lon_shifted
-
-end
-
 function make_unique_names(names::Vector{String})
 
     # expected input of exactly 8 chars:
@@ -1403,79 +1324,6 @@ function check_station_name_length(names::Vector{String}; N=8)
 
 end
 
-function mean_longitude(lon1, lon2; w1=1, w2=1)
-
-    return mean_longitude([lon1,lon2], w=[w1,w2])
-    #lon1_rad = deg2rad(lon1)
-    #lon2_rad = deg2rad(lon2)
-
-    #x = (cos(lon1_rad)*w1 + cos(lon2_rad)*w2)/(w1+w2)
-    #y = (sin(lon1_rad)*w1 + sin(lon2_rad)*w2)/(w1+w2)
-
-    #mean_rad = atan(y, x)
-	
-    #mean_deg = rad2deg(mean_rad)
-	
-	#if(mean_deg == -180)
-	#	mean_deg=180
-	#end
-		
-	#return mean_deg
-	
-end
-
-function mean_longitude(lon; w=ones(length(lon)))
-
-    x = 0.0
-    y = 0.0
-    sw = sum(w)
-
-    for (λ, wi) in zip(lon, w)
-        r = deg2rad(λ)
-        x += cos(r) * wi
-        y += sin(r) * wi
-    end
-
-    mean_rad = atan(y/sw, x/sw)
-    mean_deg = rad2deg(mean_rad)
-
-    if(mean_deg == -180)
-		mean_deg=180
-	end
-
-    return mean_deg
-end
-
-function rectangleForGMT(region,llStep)
-
-	lon1, lon2, lat1, lat2 = region
-
-	# Lati
-	lon_vec = lon1:llStep:lon2
-	lat_vec = lat1:llStep:lat2
-
-	# Costruzione del perimetro (in senso orario)
-	lon = vcat(
-		lon_vec,                      # lato basso (O → E)
-		repeat([lon2], length(lat_vec)-1),  # lato destro (S → N)
-		reverse(lon_vec)[2:end],      # lato alto (E → O)
-		repeat([lon1], length(lat_vec)-1)   # lato sinistro (N → S)
-	)
-
-	lat = vcat(
-		repeat([lat1], length(lon_vec)),     # lato basso
-		lat_vec[2:end],                      # lato destro
-		repeat([lat2], length(lon_vec)-1),   # lato alto
-		reverse(lat_vec)[2:end]              # lato sinistro
-	)
-
-	# Chiudiamo il poligono
-	regionLons = vcat(lon, lon[1])
-	regionLats = vcat(lat, lat[1])
-	
-	return regionLons, regionLats
-
-end
 
 function measure_station_density_radius(lon_s, lat_s, lon_p, lat_p, N)
 
