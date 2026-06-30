@@ -219,7 +219,7 @@ function WeightStationsV2(myDatasetin::DataFrame, thresholdNnb::Real; dispInfo::
 
 end
 
-function StationWeightedMean(myDataset)
+function StationWeightedMean(myDataset) 
     we = 1.0 ./ (myDataset.σ_E .^ 2)
     vn_mean = sum(we .* myDataset.E_Rate) / sum(we)
     se_mean = 1.0 / sqrt(sum(we))
@@ -228,8 +228,12 @@ function StationWeightedMean(myDataset)
     v_n_mean = sum(wn .* myDataset.N_Rate) / sum(wn)
     sn_mean = 1.0 / sqrt(sum(wn))
 
-    wu = 1.0 ./ (myDataset.σ_U .^ 2)
-    vu_mean = sum(wu .* myDataset.U_Rate) / sum(wu)
+    cond_up=(.!isnan.(myDataset.U_Rate)) .& (.!isnan.(myDataset.σ_U))
+    temp_vup=myDataset.U_Rate[cond_up]
+    temp_sup=myDataset.σ_U[cond_up]
+    
+    wu = 1.0 ./ (temp_sup.^ 2)
+    vu_mean = sum(wu .* temp_vup) / sum(wu)
     su_mean = 1.0 / sqrt(sum(wu))
 
     mean_lon = mean_longitude(myDataset.Long)
@@ -242,7 +246,7 @@ function StationWeightedMean(myDataset)
     )
 end
 
-function WeightStationsDBSCAN(myDatasetin::DataFrames.DataFrame, thresholdNnb::Real; dispInfo::Bool=true)
+function WeightStationsDBSCAN(myDatasetin::DataFrames.DataFrame, thresholdNnb::Real; dispInfo::Bool=true, column_track::Real=NaN)
     
     println("-> Starting DBSCAN WeightStations...")
 
@@ -254,6 +258,10 @@ function WeightStationsDBSCAN(myDatasetin::DataFrames.DataFrame, thresholdNnb::R
     db = Clustering.dbscan(D, thresholdNnb, min_neighbors=1, metric= nothing)
 
     copyDataset = copy(myDataset)
+
+
+    tracks=String[]
+
     
     used_indices = Set{Int}()
 
@@ -269,6 +277,10 @@ function WeightStationsDBSCAN(myDatasetin::DataFrames.DataFrame, thresholdNnb::R
         my_group=db.assignments[indx]
         neighbor_indices = findall((db.assignments) .== my_group)
     
+        if(!isnan(column_track))
+            track_string=string(myDataset[indx,column_track])
+        end
+
         if length(neighbor_indices) > 1
             myDatasetPartial = myDataset[neighbor_indices, :]
             newDataset = StationWeightedMean(myDatasetPartial)
@@ -294,7 +306,19 @@ function WeightStationsDBSCAN(myDatasetin::DataFrames.DataFrame, thresholdNnb::R
                     push!(used_indices, temp_indx)
                 end
             end
+
+            if(!isnan(column_track))
+                track_string=""
+                for kk in axes(myDatasetPartial, 1)
+                    track_string=track_string*string(myDatasetPartial[kk,column_track])*"*"
+                end
+            end
         end
+
+        if(!isnan(column_track))
+            push!(tracks,track_string)
+        end
+
     end
     
     deleteat!(copyDataset, sort(collect(used_indices)))
@@ -306,7 +330,11 @@ function WeightStationsDBSCAN(myDatasetin::DataFrames.DataFrame, thresholdNnb::R
     println("Finished. Overview:")
     println("From $olddim stations to $newdim stations with $diffdim total stations averaged.")
 
-    return copyDataset
+    if !isnan(column_track)
+        return copyDataset, tracks
+    else
+        return copyDataset
+    end
 end
 """
     compute_distance_matrix(lon::Array{Float64,1}, lat::Array{Float64,1}) -> Matrix{Float64}
@@ -847,6 +875,34 @@ function RemoveByCircularArea(myDataset, coords_and_radius)
     FinalDataset = myDataset[Not(indices_to_be_cleaned), :]
 
     return FinalDataset,indices_to_be_cleaned
+
+end
+
+function GetByName(my_dataset, namelist; case_sensitivity=true)
+
+    dim_of_input_data_v=size(my_dataset,1)
+    indices_ = Int[]
+    list_of_found_stat=String[]
+
+    for j in 1:length(namelist)
+        for i in 1:dim_of_input_data_v
+            
+            if(case_sensitivity)
+                if my_dataset.Site[i] == namelist[j]
+                    push!(indices_, i)
+                    push!(list_of_found_stat, namelist[j])
+                end
+            else
+                if lowercase(my_dataset.Site[i]) == lowercase(namelist[j])
+                    push!(indices_, i)
+                    push!(list_of_found_stat, namelist[j])
+                end
+            end
+
+        end
+    end
+
+    return indices_, list_of_found_stat
 
 end
 

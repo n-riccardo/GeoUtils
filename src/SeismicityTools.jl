@@ -162,9 +162,46 @@ function HorPrincipalAxesFM(Mtt_in,Mff_in,Mtf_in;exp=ones(length(Mtt_in))) #Same
 end
 
 """
+HorPrincipalAxesFM
+
+Compute the projection of principal axes on hor. plane (FM principal dirs. as seen from above)
+Return the vector used to plot the projected principal axes
+"""
+
+function ProjectedPrincipalAxes(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in;exp=ones(length(Mrr_in)),normalize=true)
+
+    #Compute principal axes first:
+    MinEigenValues,InterEigenValues,MaxEigenValues,_,Pvectors,Nvectors,Tvectors=PrincipalAxesFM(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in;exp=exp) 
+
+    P_E=Pvectors[:,1] .* MinEigenValues
+    P_N=Pvectors[:,2] .* MinEigenValues
+    N_E=Nvectors[:,1] .* InterEigenValues
+    N_N=Nvectors[:,2] .* InterEigenValues
+    T_E=Tvectors[:,1] .* MaxEigenValues
+    T_N=Tvectors[:,2] .* MaxEigenValues
+
+    if(normalize)
+        my_norms=sqrt.(MinEigenValues.^2 + InterEigenValues.^2 .+ MaxEigenValues.^2); #Frobenius norm
+    else
+        my_norms=ones(length(MinEigenValues))
+    end
+
+    P_E_nor=P_E ./ my_norms
+    P_N_nor=P_N ./ my_norms
+    N_E_nor=N_E ./ my_norms
+    N_N_nor=N_N ./ my_norms
+    T_E_nor=T_E ./ my_norms
+    T_N_nor=T_N ./ my_norms
+
+    return P_E_nor,P_N_nor,N_E_nor,N_N_nor,T_E_nor,T_N_nor
+
+
+end
+
+"""
 FocalMechanismsType
 
-Evaluate the type of focal mechanism in the sense proposed by  and Apperson (1992)
+Evaluate the type of focal mechanism in the sense proposed by Frohlich and Apperson (1992). No need for exp
 """
 function FocalMechanismsType(Mrr,Mtt,Mff,Mrt,Mrf,Mtf)
 
@@ -207,6 +244,21 @@ function FocalMechanismsType(Mrr,Mtt,Mff,Mrt,Mrf,Mtf)
 
 end
 
+function FocalMechanismsColor(Mrr,Mtt,Mff,Mrt,Mrf,Mtf; colors=[1 0 0; 0 1 0 ; 0 0 1]) #default colors: red,green,blue
+
+    fthrust,fstrikeslip,fnormal=FocalMechanismsType(Mrr,Mtt,Mff,Mrt,Mrf,Mtf)
+
+    x=sqrt.(fthrust)
+    y=sqrt.(fstrikeslip)
+    z=sqrt.(fnormal)
+
+    rgbcolors, _, _, _=map_ternary_color_octant(x,y,z,colors[:,1],colors[:,2],colors[:,3])
+    hex_colors=rgb_to_hex(rgbcolors)
+
+    return hex_colors
+
+end
+
 function MomentTensorsSum(Mrr,Mtt,Mff,Mrt,Mrf,Mtf,exps)
 
     Mrrsum=sum(Mrr.*(10.0 .^ exps))
@@ -226,4 +278,45 @@ function MomentTensorsSum(Mrr,Mtt,Mff,Mrt,Mrf,Mtf,exps)
 
     return MsumFinal[1],MsumFinal[2],MsumFinal[3],MsumFinal[4],MsumFinal[5],MsumFinal[6],expFinal
 
+end
+
+function SumFMInCells(Lon,Lat,Depth,Mrr,Mtt,Mff,Mrt,Mrf,Mtf,exps,cells,region) #use region for speed-up calculations
+
+    FMData=[Lon Lat Depth Mrr Mtt Mff Mrt Mrf Mtf exps] 
+    SumFM = Matrix{Float64}(undef, 0, size(FMData,2))
+
+    indices_mapped=[]
+    my_count=0
+
+    #cells is expected to be a vector of matrices
+    for (cell_indx, cell) in enumerate(cells)
+        
+        my_cell=copy(cell)
+    
+        test_lon=mean(my_cell[:,1])
+        test_lat=mean(my_cell[:,2])
+    
+        if((test_lon >= region[1]) & (test_lon<=region[2]) & (test_lat >= region[3]) & (test_lat <= region[4]))
+        
+            polycontour=[my_cell[k,:] for k in axes(my_cell,1)];
+            myPolygon=LibGEOS.Polygon([polycontour]);
+            withinPoly=Bool[]
+
+            for j in eachindex(Lon)
+                onePoint=LibGEOS.Point(Lon[j],Lat[j]);
+                push!(withinPoly,LibGEOS.intersects(onePoint,myPolygon));
+            end
+    
+            myFM=FMData[withinPoly,:]
+
+            if(!isempty(myFM))
+                my_count=my_count+1
+                Mrr,Mtt,Mff,Mrt,Mrf,Mtf,exp=MomentTensorsSum(myFM[:,4],myFM[:,5],myFM[:,6],myFM[:,7],myFM[:,8],myFM[:,9],myFM[:,10])
+                SumFM=vcat(SumFM,[mean(my_cell[:,1]) mean(my_cell[:,2]) mean(myFM[:,3]) Mrr Mtt Mff Mrt Mrf Mtf exp])    
+                push!(indices_mapped,cell_indx)
+            end
+        end
+    end
+
+    return SumFM,indices_mapped
 end

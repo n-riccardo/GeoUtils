@@ -407,7 +407,7 @@ end
 
 function wrap_longitude(lon::Real)
 
-    lon_shifted = lon
+    lon_shifted = copy(lon)
 	
     while lon_shifted <= -180
         lon_shifted += 360
@@ -463,3 +463,186 @@ function km2deg_longitude(distance_km::Float64, latitude::Float64)::Float64
 
 end
 
+############################################################
+### Euler Poles
+############################################################
+
+function euler_pole_from_rotation(omega; cov_omega=[1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0]) # input in deg/Myr
+
+    omega_rad_Myr=deg2rad.(omega)
+
+    omega_lon_rad=atan(omega_rad_Myr[2],omega_rad_Myr[1])
+    omega_lat_rad=atan(omega_rad_Myr[3] / sqrt((omega_rad_Myr[1]^2)+(omega_rad_Myr[2]^2)) )
+    magn_rad_Myr=sqrt((omega_rad_Myr[1]^2)+(omega_rad_Myr[2]^2)+(omega_rad_Myr[3]^2)) #rad/Myr
+    
+    wx=omega_rad_Myr[1]
+    wy=omega_rad_Myr[2]
+    wz=omega_rad_Myr[3]
+    W_m=copy(magn_rad_Myr)
+    h2 = wx^2 + wy^2
+
+    factor=1/(W_m^2)
+
+    JacobianMatrix=[ # lon,lat, mod
+        -wy/h2 wx/h2 0.0;
+        -factor*wx*wz/(sqrt(h2)) -factor*wy*wz/(sqrt(h2)) factor*sqrt(h2);
+        wx/W_m wy/W_m wz/W_m
+    ]
+
+    cov_omega_rad=cov_omega .* ((pi/180)^2)
+    covariance_result=JacobianMatrix*cov_omega_rad*(JacobianMatrix')
+
+    omega_lon_deg=rad2deg.(omega_lon_rad)
+    omega_lat_deg=rad2deg.(omega_lat_rad)
+    magn_deg_Myr=rad2deg(magn_rad_Myr)
+    covariance_result_deg=covariance_result .* ((180/pi)^2)
+
+    sigma_lon = sqrt(covariance_result_deg[1,1])
+    sigma_lat = sqrt(covariance_result_deg[2,2])
+    sigma_magn = sqrt(covariance_result_deg[3,3])
+    println("Euler Pole: \n lon: $omega_lon_deg pm $sigma_lon \n lat: $omega_lat_deg pm $sigma_lat \n rotation velocity: $magn_deg_Myr pm $sigma_magn deg/Myr \n")
+
+    return omega_lon_deg, omega_lat_deg, magn_deg_Myr, covariance_result_deg
+
+end
+
+
+function rotation_from_euler_pole(omega_lon,omega_lat,omega_magn; cov_input)
+
+    omega_lon_rad=deg2rad(omega_lon)
+    omega_lat_rad=deg2rad(omega_lat)
+    omega_magn_rad_Myr=deg2rad(omega_magn)
+
+
+    omega_vec= omega_magn_rad_Myr .* [
+        cos(omega_lat_rad)*cos(omega_lon_rad);
+        cos(omega_lat_rad)*sin(omega_lon_rad);
+        sin(omega_lat_rad)
+    ]
+
+    JacobianMatrix=[
+        -omega_magn_rad_Myr*cos(omega_lat_rad)*sin(omega_lon_rad) -omega_magn_rad_Myr*sin(omega_lat_rad)*cos(omega_lon_rad) cos(omega_lat_rad)*cos(omega_lon_rad)
+        omega_magn_rad_Myr*cos(omega_lat_rad)*cos(omega_lon_rad) -omega_magn_rad_Myr*sin(omega_lat_rad)*sin(omega_lon_rad) cos(omega_lat_rad)*sin(omega_lon_rad)
+        0.0 omega_magn_rad_Myr*cos(omega_lat_rad) sin(omega_lat_rad)
+    ]
+
+    cov_input_rad=cov_input .* ((pi/180)^2)
+    cov_output_rad=JacobianMatrix*cov_input_rad*(JacobianMatrix')
+
+    omega_vec_deg=rad2deg.(omega_vec)
+    cov_output_deg=cov_output_rad .* ((180/pi)^2)
+
+    return omega_vec_deg, cov_output_deg # deg/Myr
+
+end
+
+
+function euler_velocity(lon, lat, omega; cov_input=[1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0])
+
+    λ = deg2rad(lon)
+    φ = deg2rad(lat)
+    slat = sin(φ)
+    clat = cos(φ)
+    slon = sin(λ)
+    clon = cos(λ)
+
+    R_EARTH=copy(Earth_Radius)
+    R_EARTH=R_EARTH*(10^6); #mm
+
+    K_matrix = [
+        -R_EARTH*clon*slat   -R_EARTH*slon*slat   R_EARTH*clat;
+        R_EARTH*slon       -R_EARTH*clon         0.0
+    ]
+
+    omega_rad_yr=deg2rad.(omega) .* (10^(-6)) 
+    cov_omega_rad_yr=cov_input .* ((pi/180)^2) .* (10^(-6))^2
+
+    v = K_matrix * omega_rad_yr
+    covariance = K_matrix * cov_omega_rad_yr * (K_matrix')
+
+    return v[1], v[2], covariance # east, north [mm/yr]
+end
+
+
+"""
+    estimate_euler_velocity(stations)
+
+Return:
+omega = [wx,wy,wz] #deg/Myr
+"""
+function estimate_euler_velocity(stations) #stations is a Matrix lon-lat-ve-vn-se-sn
+
+    n = size(stations,1)
+
+    G = zeros(2*n,3)
+    d = zeros(2*n)
+    W = zeros(2*n,2*n)
+
+    R_EARTH=copy(Earth_Radius)
+    R_EARTH=R_EARTH*(10^6); #mm
+
+    for i in 1:n
+
+        s=stations[i,:]
+        λ = deg2rad(s[1])
+        φ = deg2rad(s[2])
+
+        slat = sin(φ)
+        clat = cos(φ)
+        slon = sin(λ)
+        clon = cos(λ)
+
+        G[2*i-1,:] = [
+            -R_EARTH*clon*slat   -R_EARTH*slon*slat   R_EARTH*clat
+        ]
+
+        G[2*i,:] = [
+            R_EARTH*slon       -R_EARTH*clon         0.0
+        ]
+
+        d[2*i-1] = s[3]
+        d[2*i]   = s[4]
+
+        W[2*i-1,2*i-1]= 1 / (s[5]^2)
+        W[2*i,2*i]= 1/ (s[6]^2)
+
+    end
+
+    Wsqrt=sqrt.(W)
+
+    G_W=Wsqrt*G
+    d_W=Wsqrt*d
+    
+    # weighted lsq
+    omega = G_W \ d_W
+
+    N = (G_W')* G_W
+    b=(G_W')*d_W
+    I6 = Matrix(I, 3, 3)
+
+    covariance = N \ I6
+
+    chisq = (sum(abs2, d_W)) - ((b')*covariance*b)
+
+    omega_deg_Myr = rad2deg.(omega) .* (10^6) 
+
+    factor = (180/pi)*1e6
+    covariance_deg_Myr = covariance .* (factor^2)
+
+    d_pred=G * omega 
+    residuals=d .- d_pred
+    resE=residuals[1:2:end]
+    resN=residuals[2:2:end]
+
+    return omega_deg_Myr, covariance_deg_Myr, chisq, resE, resN
+
+end
+
+function estimate_euler_pole(stations)
+
+    omega_deg_Myr, covariance_deg_Myr, chisq, resE, resN=estimate_euler_velocity(stations)
+    omega_lon_deg, omega_lat_deg, magn_deg_Myr, covariance_result_deg=euler_pole_from_rotation(omega_deg_Myr; cov_omega=covariance_deg_Myr)
+
+    return omega_lon_deg, omega_lat_deg, magn_deg_Myr, covariance_result_deg, chisq, resE, resN
+
+end

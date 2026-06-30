@@ -24,7 +24,7 @@ function rgb_to_hex(colors)
         for c in eachrow(colors)
     ]
 end
-function map_ternary_color_octant(lon,lat,cA,cB,cC)
+function map_ternary_color_octant(lon,lat,cA,cB,cC) #cA color for lower left, cB for lower tight, cC for up
 
     # longitude
     θ=deg2rad.(lon)
@@ -65,6 +65,27 @@ function map_ternary_color_octant(lon,lat,cA,cB,cC)
 
     return Cmap, λAvec, λBvec, λCvec 
 
+end
+
+function ternary_legend(;lon = 0:0.5:90,lat = 0:0.5:90,colors=[1 0 0; 0 1 0; 0 0 1])
+    A=fill("", length(lon), length(lat))
+    for i in eachindex(lon)
+        for j in eachindex(lat)
+            color,_,_,_=map_ternary_color_octant(lon[i],lat[j],colors[1,:],colors[2,:],colors[3,:])
+            hex_color=rgb_to_hex(color)
+            A[i,j]=hex_color[1]
+        end
+    end
+    GMT.basemap(J = "A45/45/6c",frame="g0a0",region=[0,90,0,90])
+    for i in eachindex(lon)
+        for j in eachindex(lat)
+            GMT.scatter!(x=lon[i],y=lat[j],fill=A[i,j], S="s2p")
+        end
+    end
+    plot!([0,90,90,0],[0,0,90,0],pen="3p,black")
+    meca!([90 0 10  0 90 0 7 0 0],Sa="0.6c",fill="green")
+    meca!([45 89 10  0 45 -90 7 0 0],Sa="0.6c",fill="blue")
+    meca!([0 0 10  0 45 90 7 0 0],Sa="0.6c",fill="red") #!!! meca is not well oriented with G projection
 end
 function map_ternary_color_octant(X,Y,Z,cA,cB,cC)
     

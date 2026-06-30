@@ -1,15 +1,10 @@
 #!/usr/bin/env julia
 
-# Julia translation of GAMIT/GLOBK velrot.f for standard velocity files.
+# Julia translation of GAMIT/GLOBK velrot.f for velocity files.
 #
 # The code follows the Fortran program's data flow:
 #   read sys1 -> frame update -> read sys2 -> frame update -> build links
 #   -> estimate Helmert rate parameters -> update sys1 -> write combined field.
-#
-# Some GAMIT helper routines are not present in this workspace.  The missing
-# geodetic routines are implemented here with WGS84 ellipsoid constants.  Frame
-# rotations are treated as zero unless explicit values are added to
-# frame_rotation_vector().
 
 using LinearAlgebra
 using Printf

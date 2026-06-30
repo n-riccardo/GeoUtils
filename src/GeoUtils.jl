@@ -23,5 +23,6 @@ include("StrainRateTools.jl")
 include("FilteringUtilsFunctions.jl")
 include("SeismicityTools.jl")
 include("velrot.jl")
+include("ReadWrite.jl")
 
 end
