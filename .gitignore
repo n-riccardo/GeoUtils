@@ -1,3 +1,5 @@
 #  --- Sistema Operativo macOS ---
 .DS_Store
 .DS_Store?
+# Ignora tutti i file di output .out ovunque nel progetto
+*.out
