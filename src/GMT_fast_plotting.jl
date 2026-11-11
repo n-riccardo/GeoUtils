@@ -316,10 +316,10 @@ matrix_strain must have:
 5: azimuth of eps2 in degrees CW from North.
 """
 function PlotFancyHorStrainTensor(range_plot::Vector{<:Real}, scale_plot::Real, matrix_strain::Matrix{<:Real}; legend_data::Matrix{<:Real}=[0.0 0.0 0.0 0.0 0.0], 
-    leg_offset::Vector{<:Real} = [0.0, 0.0], leg_font::String = "11p,Helvetica-Bold,black", projection_s::String = "M15c", 
+    leg_offset::Vector{<:Real} = [0.0, 0.0], leg_font::String = "11p,Helvetica,black", projection_s::String = "M15c", 
     frame_s::String = "af", colors::Vector{String} =["blue","red"], arrow::String = "0.2c+a45+p0.025c+e+n30/0.005+g", 
     pen_coast::String = "0.01c,black", pen_velo::String = "0.012c", Are_you_Overwriting::Bool = false,
-    transparency::String="50",legend_text::String="str/yr")
+    legend_text::String=" nstr/yr")
 
     matrix_strainExtension=copy(matrix_strain)
     matrix_strainExtension[:,4]=matrix_strain[:,4].*0
@@ -349,7 +349,7 @@ function PlotFancyHorStrainTensor(range_plot::Vector{<:Real}, scale_plot::Real, 
     outlines=true, Sx=scale_s,
     arrow=arrow * colors[2])
 
-    text!(x=legend_data[1] + leg_offset[1], y=legend_data[2] + leg_offset[2], text=string(legend_data[3])*legend_text, font=leg_font)
+    text!(x=legend_data[1,1]+ leg_offset[1], y=legend_data[1,2] + leg_offset[2], text=rich(string(Int(legend_data[1,3])),legend_text), font=leg_font)
 
     velo!(matrix_strainCompression, pen=pen_velo*","*colors[1],
     outlines=true, Sx=scale_s,

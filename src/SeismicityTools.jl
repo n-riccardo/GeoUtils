@@ -1,6 +1,6 @@
 function LabelFocalMechanisms(Mrr,Mtt,Mff,Mrt,Mrf,Mtf)
 
-# In GMT they use r, t, f system that is up, south, east (Harvard/Global CMT convention)
+# r, t, f system is up, south, east (Harvard/Global CMT convention)
 # Same convention for GCMT for the six moment-tensor elements (p=f): Mrr, Mtt, Mpp, Mrt, Mrp, Mtp, where r is up, t is south, and p is east. 
 
 fthrust,fstrikeslip,fnormal=FocalMechanismsType(Mrr,Mtt,Mff,Mrt,Mrf,Mtf)
@@ -18,7 +18,7 @@ end
 """
 PrincipalAxesFM
 
-Get the eigenvalues and eigenvector decomposition of the moment tensor.
+Get the eigenvalues and eigenvector decomposition of the complete moment tensor.
 Expected vectors are Mrr,Mtt,Mff,Mrt,Mrf,Mtf where the convention followed is r=up, t=south, and f=east; representing the components of a vector of moment tensors.
 Do not froget that the exp.
 
@@ -27,22 +27,22 @@ Eigenvalues refer to the FULL moment tensor M as provided in input
 P-N-T (Pressure-Null-Tension) vectors are the (orthonormal) eigenvectors corresponding to the min, intermediate and max eigenvector, respectively 
 For each Moment Tensor the isotropic part is also returned: +(1/3)*trace(M)
 """
-function PrincipalAxesFM(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in;exp=ones(length(Mrr_in))) 
+function PrincipalAxesFM(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in;exp=zeros(length(Mrr_in))) 
 
-    Mrr=Mrr_in .* (10.0 .^ (exp));
-    Mtt=Mtt_in .* (10.0 .^ (exp));
-    Mff=Mff_in .* (10.0 .^ (exp));
-    Mrt=Mrt_in .* (10.0 .^ (exp));
-    Mrf=Mrf_in .* (10.0 .^ (exp));
-    Mtf=Mtf_in .* (10.0 .^ (exp));
+    Mrr=Mrr_in;
+    Mtt=Mtt_in;
+    Mff=Mff_in;
+    Mrt=Mrt_in;
+    Mrf=Mrf_in;
+    Mtf=Mtf_in;
     # Convention is r is up, t (s) is south, and f (e) is east.
     # Results are given in ENU (East-North-Up) convention
 
-    MinEigenValues=[]
-    InterEigenValues=[]
-    MaxEigenValues=[]
+    MinEigenValues=Float64[]
+    InterEigenValues=Float64[]
+    MaxEigenValues=Float64[]
 
-    IsoPart=[]
+    IsoPart=Float64[]
 
     Pvectors=zeros(length(Mtt),3)
     Nvectors=zeros(length(Mtt),3)
@@ -69,7 +69,7 @@ function PrincipalAxesFM(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in;exp=ones(leng
         
         # compute eigenvalues and eigenvectors
         F = eigen(Mmatrix)
-        # F contains the eigenvalues in F.values and the orthonormal eigenvectors in the COLUMNS of the matrix F.vectors
+        # F contains the eigenvalues in F.values and the ORTHONORMAL eigenvectors in the COLUMNS of the matrix F.vectors
         # (The kth eigenvector can be obtained from the slice F.vectors[:, k].)
         Indices=sortperm(F.values)
         EigenvaluesOrdered=F.values[Indices]
@@ -96,21 +96,85 @@ function PrincipalAxesFM(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in;exp=ones(leng
     end
 
 
-    return MinEigenValues,InterEigenValues,MaxEigenValues,IsoPart,Pvectors,Nvectors,Tvectors
+    return MinEigenValues .* (10.0 .^ (exp)), InterEigenValues.* (10.0 .^ (exp)), MaxEigenValues.* (10.0 .^ (exp)), IsoPart.* (10.0 .^ (exp)), Pvectors, Nvectors, Tvectors
 
 end
 
+"""
+normal_and_slip_dirFM
+return normal and slip vector directions . Exact if the double couple tensor is used.
+"""
+function normal_and_slip_dirFM(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in)
+
+    NumberOfMomentTensors=length(Mtt_in)
+
+    Slipvectors_1=zeros(NumberOfMomentTensors,3)
+    Normalvectors_1=zeros(NumberOfMomentTensors,3)
+    Slipvectors_2=zeros(NumberOfMomentTensors,3)
+    Normalvectors_2=zeros(NumberOfMomentTensors,3)
+
+    _,_,_,_,Pvectors,_,Tvectors= PrincipalAxesFM(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in) 
+
+    
+    for i=1:NumberOfMomentTensors
+
+        slip1   = (1.0/sqrt(2.0)) .* (Tvectors[i,:] .+ Pvectors[i,:])
+        normal1 = (1.0/sqrt(2.0)) .* (Tvectors[i,:] .- Pvectors[i,:])
+
+        slip2   = (1.0/sqrt(2.0)) .* (Tvectors[i,:] .- Pvectors[i,:])
+        normal2 = (1.0/sqrt(2.0)) .* (Tvectors[i,:] .+ Pvectors[i,:])
+
+        Slipvectors_1[i,:]=[slip1[1] slip1[2] slip1[3]] 
+        Normalvectors_1[i,:]=[normal1[1] normal1[2] normal1[3]]
+
+        Slipvectors_2[i,:]=[slip2[1] slip2[2] slip2[3]] 
+        Normalvectors_2[i,:]=[normal2[1] normal2[2] normal2[3]]
+
+    end
+
+    return Slipvectors_1, Normalvectors_1, Slipvectors_2, Normalvectors_2
+
+end
+
+"""
+Compute magnitude from best double couple from Moment tensors and compute CLVD part (Gasperini presentation).
+"""
+function compute_seismic_moment(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in;exp=zeros(length(Mrr_in)))
+
+    MinEigenValues,InterEigenValues,MaxEigenValues,IsoPart,_,_,_=PrincipalAxesFM(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in;exp=zeros(length(Mrr_in)))
+
+    dev1=MinEigenValues .- IsoPart
+    dev2=InterEigenValues .- IsoPart
+    dev3=MaxEigenValues .- IsoPart
+    
+    lambda1 = zeros(length(dev1))
+    lambda2 = zeros(length(dev1))
+    lambda3 = zeros(length(dev1))
+    
+    for i in eachindex(dev1)
+        s = sort((dev1[i], dev2[i], dev3[i]), by=abs, rev=true) #bigger to smaller in abs value
+        lambda1[i] = s[1]
+        lambda2[i] = s[2]
+        lambda3[i] = s[3]
+    end
+    
+    etas= -(lambda3 ./ (2 .* lambda1)) # Representing the percentage of CLVD (assumed to be due to errors in the determination of the FM)
+    seismic_moments=(abs.(lambda1 .- lambda2)./2.0) .* (10 .^ (exp)) # Max possible seismic moment
+    Mws=(2.0/3.0) .* log10.(seismic_moments) .- 10.7; # formula for dyne*cm
+
+    return seismic_moments, Mws, etas
+end
 
 """
 HorPrincipalAxesFM
 
 Same of PrincipalAxesFM but using horizontal M tensor
 """
-function HorPrincipalAxesFM(Mtt_in,Mff_in,Mtf_in;exp=ones(length(Mtt_in))) #Same of PrincipalAxesFM but 2D
+function HorPrincipalAxesFM(Mtt_in,Mff_in,Mtf_in;exp=zeros(length(Mtt_in))) #Same of PrincipalAxesFM but 2D
 
-    Mtt=Mtt_in .* (10.0 .^ (exp));
-    Mff=Mff_in .* (10.0 .^ (exp));
-    Mtf=Mtf_in .* (10.0 .^ (exp));
+    Mtt=Mtt_in;
+    Mff=Mff_in;
+    Mtf=Mtf_in;
 
     MinEigenValues=[]
     MaxEigenValues=[]
@@ -157,7 +221,7 @@ function HorPrincipalAxesFM(Mtt_in,Mff_in,Mtf_in;exp=ones(length(Mtt_in))) #Same
     end
 
 
-    return MinEigenValues,MaxEigenValues,IsoPart,Pvectors,Tvectors
+    return MinEigenValues .* (10.0 .^ (exp)),MaxEigenValues .* (10.0 .^ (exp)),IsoPart .* (10.0 .^ (exp)),Pvectors,Tvectors
 
 end
 
@@ -168,7 +232,7 @@ Compute the projection of principal axes on hor. plane (FM principal dirs. as se
 Return the vector used to plot the projected principal axes
 """
 
-function ProjectedPrincipalAxes(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in;exp=ones(length(Mrr_in)),normalize=true)
+function ProjectedPrincipalAxes(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in;exp=zeros(length(Mrr_in)),normalize=true)
 
     #Compute principal axes first:
     MinEigenValues,InterEigenValues,MaxEigenValues,_,Pvectors,Nvectors,Tvectors=PrincipalAxesFM(Mrr_in,Mtt_in,Mff_in,Mrt_in,Mrf_in,Mtf_in;exp=exp) 

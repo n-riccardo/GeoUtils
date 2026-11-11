@@ -22,7 +22,7 @@ function write_to_netcdf(filename::String, lon::Vector{<:Real}, lat::Vector{<:Re
                          value_name::String="z", value_units::String=" ", value_desc::String=" ")
 
     ds = NCDataset(filename, "c")
-    try
+
         # Define dimensions
         defDim(ds, "lon", length(lon))
         defDim(ds, "lat", length(lat))
@@ -44,8 +44,8 @@ function write_to_netcdf(filename::String, lon::Vector{<:Real}, lat::Vector{<:Re
         lon_var[:] = lon
         lat_var[:] = lat
         value_var[:, :] = values  # Write values in (lon, lat) order
-    finally
+
         # Close the NetCDF file
         close(ds)
-    end
+
 end

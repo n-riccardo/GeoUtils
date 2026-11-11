@@ -1,0 +1,11 @@
+./combined.cmm4                                  ! Station coordinate and velocity solution file
+strain.out                                 ! Strain rate output file
+1                                          ! distance weighting scheme: 1=gaussian, 2=quadratic
+2                                          ! spatial weighting scheme: 1=azimuth, 2=voronoi area
+1 100 1                                    ! minimum, maximum, and incremental spatial smoothing constants (km)
+24                                         ! weighting threshold Wt
+0.05                                        ! uncertainty threshold for reset
+3                                          ! function: 1=velocity compatibility checking; 2=velocity interpolation; 3=strain rate interpolation
+25 30 34 38 0.1 0.1          ! Lon_min, Lon_max, Lat_min, Lat_max, dLon, dLat
+ 0                                         ! number of creep faults
+                                           ! creep fault data file

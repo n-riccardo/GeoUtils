@@ -250,7 +250,7 @@ end
 function write_wavformat(filename, Lon, Lat, Ve, Vn, Se, Sn, Name; 
     Vu=zeros(length(Lon)), Su=ones(length(Lon)), 
     Ren=zeros(length(Lon)), Reu=zeros(length(Lon)), Run=zeros(length(Lon)), 
-    t1= (zeros(length(Lon)) .* NaN), t2=(zeros(length(Lon)) .* NaN))
+    t1= zeros(length(Lon)), t2=zeros(length(Lon)))
 
 VeloTseri = DataFrame(
     lon = Lon,

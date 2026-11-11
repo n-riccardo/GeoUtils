@@ -219,7 +219,7 @@ function WeightStationsV2(myDatasetin::DataFrame, thresholdNnb::Real; dispInfo::
 
 end
 
-function StationWeightedMean(myDataset) 
+function StationWeightedMean(myDataset) #Adjust to consider that Vup could be NaN
     we = 1.0 ./ (myDataset.σ_E .^ 2)
     vn_mean = sum(we .* myDataset.E_Rate) / sum(we)
     se_mean = 1.0 / sqrt(sum(we))
@@ -232,9 +232,14 @@ function StationWeightedMean(myDataset)
     temp_vup=myDataset.U_Rate[cond_up]
     temp_sup=myDataset.σ_U[cond_up]
     
-    wu = 1.0 ./ (temp_sup.^ 2)
-    vu_mean = sum(wu .* temp_vup) / sum(wu)
-    su_mean = 1.0 / sqrt(sum(wu))
+    if(isempty(temp_vup) | isempty(temp_sup))
+        vu_mean=NaN;
+        su_mean=NaN;
+    else
+        wu = 1.0 ./ (temp_sup.^ 2)
+        vu_mean = sum(wu .* temp_vup) / sum(wu)
+        su_mean = 1.0 / sqrt(sum(wu))
+    end
 
     mean_lon = mean_longitude(myDataset.Long)
     mean_lat = mean(myDataset.Lat) 
@@ -871,8 +876,10 @@ function RemoveByCircularArea(myDataset, coords_and_radius)
         end
     end
 
+    clean_indices = unique(indices_to_be_cleaned)
+
     # Delete selected rows
-    FinalDataset = myDataset[Not(indices_to_be_cleaned), :]
+    FinalDataset = myDataset[Not(clean_indices), :]
 
     return FinalDataset,indices_to_be_cleaned
 
@@ -1149,7 +1156,7 @@ function call_velrot(MasterDataset, SlaveDataset, Dtreshold; param_opt="TR",vert
 
     # Reading section
     # Read the output file
-    indx_fsites, indx_SlaveInMaster, indx_MasterInSlave = get_indices(outVelrotName)
+    indx_fsites, indx_SlaveInMaster, indx_MasterInSlave = get_indices(outVelrotName) #indices for the output velrot file
 
     # Residuals:
     ResDataset = CSV.read(outVelrotName, 
@@ -1157,8 +1164,8 @@ function call_velrot(MasterDataset, SlaveDataset, Dtreshold; param_opt="TR",vert
     skipto=indx_fsites + 2, limit=indx_SlaveInMaster - indx_fsites - 3, delim=' ', ignorerepeated=true, DataFrame)
 
     # Common stations
-    indxCommonSlave = zeros(Bool, length(SlaveDataset[:,1]))
-    indxCommonMaster = zeros(Bool, length(MasterDataset[:,1]))
+    indxCommonSlave = [] # do not use bool vectors but indices!
+    indxCommonMaster = []
 
     CommonSlaveRep=DataFrame()
     CommonMasterRep=DataFrame()
@@ -1170,13 +1177,13 @@ function call_velrot(MasterDataset, SlaveDataset, Dtreshold; param_opt="TR",vert
 
         for j in 1:length(SlaveDataset[:,1])
             if SlaveDataset[j,9] == name_temp_Slave
-                indxCommonSlave[j]=true
+                push!(indxCommonSlave,j)
                 push!(CommonSlaveRep, SlaveDataset[j,:])
             end
         end
         for k in 1:length(MasterDataset[:,1])
             if MasterDataset[k,9] == name_temp_Master
-                indxCommonMaster[k]=true
+                push!(indxCommonMaster,k)
                 push!(CommonMasterRep, MasterDataset[k,:])
             end
         end
